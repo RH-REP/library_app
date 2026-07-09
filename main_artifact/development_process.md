@@ -1,192 +1,132 @@
-# ArtifactForge Development Process
+# AI agent用テンプレート: development_process.md
 
-This document is the initial development process for building ArtifactForge from
-an empty repository. It is intentionally split into small stages so each contract
-can be reviewed before later code depends on it.
+このファイルは、人間が直接埋めるためのフォームではありません。
 
-## Stage 0: Repository Contract
+AI agent は、最初の GitHub issue と `main_artifact/goal.md` を読み、
+ユーザーと確認しながら、このファイルを制作工程として更新してください。
 
-Create the initial user-facing and internal layout contracts.
+工程は最初から細かく決めすぎず、ユーザーが次に判断しやすい粒度にしてください。
 
-Deliverables:
+## 工程概要
 
-- `main_artifact/goal.md`
-- `main_artifact/README.md`
-- `sub_artifact/README.md`
-- `issue_log/README.md`
-- `issue_log/`
-- `.core_program` directory contract
-- documented names for queue, pending, archive, router session, and assignment state
+このプロジェクトをどう進めるか、短く説明する。
 
-Reserved `.core_program` names:
+TODO: first issue と goal.md から整理する。
 
-```text
-.core_program/queue/
-.core_program/pending/
-.core_program/archive/
-.core_program/router_session_id.txt
-.core_program/assignment_state.json
-```
+## 工程1: 目標整理
 
-Acceptance:
+目的、成功条件、範囲、未確定事項を整理する。
 
-- The repo has one clear user-facing goal location.
-- Internal engine files are separated under `.core_program`.
-- `issue_log/` is the only user-facing issue log name.
-- No top-level `artifact/` or `ticket_log/` path is part of the contract.
+成果物:
 
-## Review 1: Structure And Naming Review
+- `main_artifact/goal.md` の更新
+- 未確定事項の整理
+- 最初に作る sub_artifact 候補の整理
 
-Review after Stage 0 and before implementing routing logic.
+完了条件:
 
-Questions:
+- ユーザーが「何を作るか」を確認できる
+- 作らない範囲が明示されている
+- 次の作業 issue を切れる
 
-- Are user-facing files separated from `.core_program` internals?
-- Are `main_artifact`, `sub_artifact`, and `issue_log` names final?
-- Is there any accidental legacy dependency on `artifact/` or `ticket_log/`?
+確認事項:
 
-Exit condition:
+- この目標で進めてよいか？
+- 最初の成果物単位は何か？
+- 先に調査・設計・試作のどれをするべきか？
 
-- The directory contract is accepted as the base for implementation.
-- Stage 1 routing state, GitHub fetch, and worker dispatch implementation have
-  not started.
+## 工程2: 最初の制作単位
 
-## Stage 1: Assignment State
+最初の `sub_artifact/NNN_slug/` に相当する作業単位を作る。
 
-Define the canonical `.core_program` assignment record for:
+成果物:
 
-- issue number or issue URL
-- trigger fingerprint
-- session ID
-- `sub_artifact/NNN_slug/` path
-- assignment status
-- whether the record is current
-- router decision source
+- `sub_artifact/NNN_slug/sub_goal.md`
+- `sub_artifact/NNN_slug/plan.md`
+- `sub_artifact/NNN_slug/work_log.md`
+- `sub_artifact/NNN_slug/artifact.md`
 
-Acceptance:
+完了条件:
 
-- A returned session ID can always be traced to one current assignment record.
-- Historical reassignment can be represented without making current routing ambiguous.
-- The state can distinguish router pending from worker pending.
+- 最初の作業単位の目的が明確である
+- 成果物の置き場所が明確である
+- 次に worker が何をすればよいかわかる
 
-## Stage 2: Issue Fetch And Queue
+## レビュー1: 最初の方向性確認
 
-Implement the issue fetch and queue builder.
+最初の作業単位に入る前に確認する。
 
-Rules:
+確認事項:
 
-- AI marker comments are ignored as new work.
-- A done marker prevents requeueing the same trigger fingerprint.
-- A blocked marker prevents automatic dispatch until later human action.
-- A reassign marker routes the issue back through `Session_router`.
-- If a trigger fingerprint already exists in queue or pending, it is not queued again.
+- `goal.md` は worker が読んで迷わないか？
+- 最初の `sub_artifact` は大きすぎないか？
+- ユーザーに確認すべき未確定事項は残っているか？
 
-Acceptance:
+終了条件:
 
-- The queue is deterministic from a given issue snapshot.
-- The same issue group is not dispatched concurrently by normal operation.
-- The lack of a global lock is backed by queue and pending duplicate checks.
+- ユーザーが最初の作業単位に進むことを了承している
 
-## Stage 3: Session_router Contract
+## 工程3: 反復制作
 
-Implement the router prompt, router call, and output validation.
+GitHub issue ごとに作業を追加し、必要に応じて sub_artifact を増やす。
 
-Rules:
+成果物:
 
-- Router output is exactly one session ID line.
-- JSON, Markdown, prose, confidence, and diagnostics are invalid stdout.
-- Existing candidate sessions are asked whether the issue belongs to them.
-- If a candidate denies the issue and another candidate exists, ask the next candidate.
-- If no valid candidate accepts the issue, create a new worker session.
-- When reassigning, do not route back to the rejecting previous session.
+- issue ごとの `issue_log/`
+- 更新された `sub_artifact/`
+- 必要に応じた `goal.md` / `development_process.md` の更新
 
-Acceptance:
+完了条件:
 
-- Invalid router output stops dispatch and produces an internal diagnostic.
-- A valid router output is recorded before the worker prompt is sent.
-- New session creation never returns a placeholder ID.
+- issue の要求と成果物の関係が追跡できる
+- 判断の理由が `issue_log/` に残っている
+- 完了・保留・再確認が区別できる
 
-## Review 2: Routing Contract Review
+## レビュー2: 作業単位の見直し
 
-Review after Stage 3 and before implementing worker initialization.
+中間時点で、作業単位と目標がずれていないか確認する。
 
-Questions:
+確認事項:
 
-- Does router stdout remain machine-safe as a one-line protocol?
-- Can each router decision be audited in `.core_program` without reading stdout diagnostics?
-- Does the no-global-lock assumption still hold with the queue and pending checks?
-- Does reassignment avoid retrying the same rejecting session?
+- 現在の sub_artifact は goal に沿っているか？
+- issue が正しい作業単位に割り当てられているか？
+- 追加で切り出すべき sub_artifact はあるか？
 
-Exit condition:
+終了条件:
 
-- Router output, assignment state, and pending state are accepted as stable contracts.
+- 継続する作業単位と、見直す作業単位が分かれている
 
-## Stage 4: Dispatch And Pending Lifecycle
+## 工程4: 仕上げ
 
-Implement dispatch from queue to worker session.
+成果物をまとめ、提出・公開・利用できる状態に近づける。
 
-Rules:
+成果物:
 
-- Worker prompt send success moves the event to pending.
-- Dispatch does not wait for completion.
-- The next issue fetch checks GitHub markers and archives or keeps pending records.
-- Long-lived pending records are visible as operational warnings.
+- TODO
 
-Acceptance:
+完了条件:
 
-- Pending records show what was sent, to which session, and why.
-- Router pending and worker pending are distinguishable.
-- A failed send does not masquerade as worker pending.
+- goal.md の成功条件と照合できる
+- 残課題が明示されている
+- ユーザーが成果物を利用・提出・公開できる
 
-## Stage 5: Worker Sub-artifact Initialization
+## レビュー3: 最終確認
 
-Implement the worker first-work contract.
+最終確認を行う。
 
-On first real work, the worker creates:
+確認事項:
 
-```text
-sub_artifact/NNN_slug/sub_goal.md
-sub_artifact/NNN_slug/plan.md
-sub_artifact/NNN_slug/work_log.md
-sub_artifact/NNN_slug/artifact.md
-```
+- 成果物は `goal.md` の成功条件を満たしているか？
+- 重要な判断や未解決リスクは `issue_log/` に残っているか？
+- `.core_program/` を見なくても、人間が成果物を理解できるか？
 
-Rules:
+終了条件:
 
-- Initialization is idempotent.
-- Existing files are not overwritten silently.
-- The files identify the issue, session ID, and sub-artifact path.
-- Slug/index reuse means the work belongs to the same current sub-artifact, not a collision to resolve.
+- ユーザーが成果物を受け取れる
+- 残すべき次アクションが明示されている
 
-Acceptance:
+## ユーザーへの確認事項
 
-- Partial initialization is detectable.
-- Re-running the worker does not create a second path for the same assignment.
-- The assignment record and sub-artifact files agree.
+AI agent は、必要に応じてここに質問を追加する。
 
-## Stage 6: End-to-end Operation
-
-Connect fetch, queue, router, dispatch, pending follow-up, and worker
-initialization into the normal cycle.
-
-Acceptance:
-
-- A new issue can be routed to an existing session or a new session.
-- A worker can initialize a sub-artifact and leave a GitHub marker.
-- A later fetch can detect done, blocked, or reassign status.
-- Operator-facing summaries are separate from router stdout.
-
-## Review 3: End-to-end Operational Review
-
-Review after Stage 6 and before treating the system as usable for real work.
-
-Questions:
-
-- Can an issue be traced through fetch, queue, router, dispatch, pending, and marker detection?
-- Are pending records enough to notice worker initialization failure?
-- Are user-facing artifacts understandable without opening `.core_program` internals?
-- Is the first real workflow recoverable after router invalid output, send failure, blocked status, and reassignment?
-
-Exit condition:
-
-- The system can run a dry end-to-end issue lifecycle with no ambiguous state.
+- TODO

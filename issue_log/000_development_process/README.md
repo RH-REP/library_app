@@ -9,6 +9,10 @@ Created decisions:
   - Review 1: structure and naming
   - Review 2: routing contract
   - Review 3: end-to-end operation
+- `README.md` gives the user a first-issue template with three core questions
+  and optional supporting questions.
+- `main_artifact/goal.md` is an AI-agent template that is updated from the first issue.
+- `main_artifact/development_process.md` is an AI-agent template that is updated from the first issue and goal.
 - `issue_log/` is the local issue-work log name.
 - `.core_program/queue/`, `.core_program/pending/`, and
   `.core_program/archive/` are the reserved internal lifecycle directories.

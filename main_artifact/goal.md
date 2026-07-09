@@ -1,41 +1,59 @@
-# ArtifactForge Goal
+# AI agent用テンプレート: goal.md
 
-ArtifactForge is a local program for turning a user-written production goal and
-GitHub issues into coordinated AI worker sessions.
+このファイルは、人間が直接埋めるためのフォームではありません。
 
-The user-facing repository layout starts from:
+AI agent は、最初の GitHub issue に書かれた「作りたいアーティファクト」の相談を読み、
+ユーザーと確認しながら、このファイルをプロジェクトの制作目標として更新してください。
 
-```text
-main_artifact/goal.md
-sub_artifact/001_slug/
-issue_log/
-```
+ユーザーがまだ迷っている場合は、断定せず、仮置きの目標と未確定事項を分けてください。
 
-`.core_program` is the internal engine. It owns routing state, queue state,
-pending state, archive state, router session configuration, and session
-assignment records.
+## 制作目標
 
-## Core Flow
+このプロジェクトで作る最終成果物を、1から3文で書く。
 
-1. The user writes the production goal in `main_artifact/goal.md`.
-2. GitHub issues describe work requests.
-3. `.core_program` fetches issue events and queues work that needs an AI worker.
-4. `Session_router` reads the goal, issue event, and assignment state.
-5. `Session_router` returns exactly one session ID line.
-6. The dispatcher sends the worker prompt to that session and moves the event to pending.
-7. Completion is not waited on synchronously. The next issue fetch detects worker markers and updates pending state.
-8. A worker initializes its own `sub_artifact/001_slug/` area on first real work.
+TODO: first issue から整理する。
 
-## Fixed Decisions
+## 背景
 
-- The canonical issue-to-session-to-sub-artifact assignment state lives inside `.core_program`.
-- The reserved assignment state path is `.core_program/assignment_state.json`.
-- The reserved router session path is `.core_program/router_session_id.txt`.
-- Router stdout is a protocol surface and must contain only one session ID line.
-- Logs, diagnostics, and state records must not be mixed into router stdout.
-- Global locking is not planned because the dispatcher is expected to process one issue group at a time.
-- Duplicate prevention is handled by queue, pending, and assignment-state checks.
-- `ticket_log/` is not used. The user-facing issue work log is `issue_log/`.
-- Completion is detected by later issue fetches, not by waiting during dispatch.
-- This repository starts from the new layout, so no legacy top-level `artifact/`
-  or `ticket_log/` migration path is required.
+なぜこの成果物が必要なのかを書く。
+
+TODO: first issue から整理する。
+
+## 成功条件
+
+完成と判断する条件を書く。
+
+- TODO
+- TODO
+- TODO
+
+## 作る範囲
+
+今回作る範囲を書く。
+
+TODO: first issue から整理する。
+
+## 作らない範囲
+
+現時点で作らない範囲、判断しない範囲、触らない範囲を書く。
+
+TODO: first issue から整理する。
+
+## 参考資料
+
+ユーザーが提示した材料、URL、ファイル、参考情報を書く。
+
+TODO: first issue から整理する。
+
+## 未確定事項
+
+まだ確認が必要なことを書く。
+
+- TODO
+
+## 運用メモ
+
+- GitHub issue は具体的な作業依頼や相談に使う。
+- `issue_log/` には、人間が読める判断・相談・作業記録を残す。
+- worker が作る個別成果物は `sub_artifact/NNN_slug/` に置く。
+- `.core_program/` は内部エンジン用であり、通常の制作記録は置かない。

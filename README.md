@@ -1,43 +1,64 @@
 # ArtifactForge
 
-ArtifactForge is a repository for turning one main production goal and GitHub
-issue requests into coordinated AI worker sessions.
+ArtifactForge は、GitHub issue に書いた相談から `goal.md` と
+`development_process.md` を AI agent と一緒に作り、制作作業を進めるための
+リポジトリです。
 
-This repository starts from the new directory contract. The canonical
-user-facing names are:
+## 最初にすること
 
-```text
-main_artifact/  # primary goal, process, and human-facing product direction
-sub_artifact/   # worker-owned production units created from routed issues
-issue_log/      # human-facing issue-work log
-.core_program/  # internal automation contracts, queues, state, and diagnostics
+ダウンロード後、最初の GitHub issue に「このアーティファクトで何を作りたいか」
+を書いてください。
+
+下のテンプレートを issue に貼り付け、まず3つだけ埋めれば十分です。
+オプションは空欄でも構いません。AI agent が質問しながら
+`main_artifact/goal.md` と `main_artifact/development_process.md` を整理します。
+
+```md
+# 作りたいアーティファクト
+
+## 何を作りたいですか？
+
+例: 文書、調査レポート、申請書、Webアプリ、分析資料、創作物、運用手順など。
+
+ここに書いてください:
+
+## 進め方の希望はありますか？
+
+例: まず相談したい、先に調査したい、目次から作りたい、小さく分けたい、レビューを挟みたい、など。
+
+ここに書いてください:
+
+## ゴールはなんですか？
+
+成功条件、品質、使える状態、提出先、読者、利用者などを書いてください。
+
+ここに書いてください:
+
+---
+
+## オプション: なぜ作りたいですか？
+
+背景、困っていること、目的、使う場面など。
+
+ここに書いてください:
+
+## オプション: すでにある材料はありますか？
+
+既存ファイル、URL、メモ、PDF、画像、過去の issue、参考資料など。
+
+ここに書いてください:
+
+## オプション: 作業で避けたいことはありますか？
+
+やらないでほしいこと、まだ決めたくないこと、触ってほしくない範囲など。
+
+ここに書いてください:
 ```
 
-There is no top-level `artifact/` directory contract and no `ticket_log/`
-contract in this repository.
+## ファイルの役割
 
-## Stage 0 Contract
-
-Stage 0 fixes names and boundaries only. It does not implement issue routing,
-GitHub fetching, or worker dispatch.
-
-| Path | Responsibility |
-| --- | --- |
-| `main_artifact/goal.md` | The one human-facing production goal. |
-| `main_artifact/development_process.md` | Stage plan and review gates. |
-| `sub_artifact/` | Future worker-owned units, one directory per current assignment. |
-| `issue_log/` | Human-facing issue history and review notes. |
-| `.core_program/` | Machine-facing engine state, prompts, queues, and diagnostics. |
-
-The internal lifecycle names reserved under `.core_program/` are:
-
-| Name | Path |
-| --- | --- |
-| Queue | `.core_program/queue/` |
-| Pending | `.core_program/pending/` |
-| Archive | `.core_program/archive/` |
-| Router session | `.core_program/router_session_id.txt` |
-| Assignment state | `.core_program/assignment_state.json` |
-
-The router session and assignment state files are reserved names. Later stages
-will define their exact schemas and behavior.
+- `main_artifact/goal.md`: AI agent が最初の issue から制作目標を整理する場所
+- `main_artifact/development_process.md`: AI agent が工程とレビュー点を整理する場所
+- `sub_artifact/`: worker が個別の制作単位を作る場所
+- `issue_log/`: issue ごとの判断や作業記録を残す場所
+- `.core_program/`: 内部エンジン用。通常は直接編集しません

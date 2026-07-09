@@ -1,16 +1,16 @@
-# main_artifact Contract
+# main_artifact
 
-`main_artifact/` is the primary human-facing artifact area.
+`main_artifact/` は、このプロジェクトの制作目標と工程を置く場所です。
 
-It owns:
+ユーザーは、まず GitHub issue に「何を作りたいか」を書きます。
+その issue を読んだ AI agent が、次の2つを整理・更新します。
 
-- the production goal in `goal.md`
-- the staged implementation plan in `development_process.md`
-- review-gate decisions that change repository-level product direction
+1. `goal.md`
+2. `development_process.md`
 
-It does not own internal queue files, pending records, router diagnostics, or
-session assignment state. Those belong under `.core_program/`.
+通常、ユーザーが最初からこの2ファイルを直接埋める必要はありません。
+迷っている内容も issue に書いてください。
 
-It also does not replace `sub_artifact/`. Worker-owned production units belong
-under `sub_artifact/NNN_slug/` after routing and worker initialization are
-implemented in later stages.
+`.core_program/` の queue、pending、router 診断、session 割り当て状態は
+内部エンジン用です。制作目標や人間向けの判断記録はここか `issue_log/` に
+残します。
