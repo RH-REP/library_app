@@ -6,14 +6,15 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 INIT_PROJECT_PATH = REPO_ROOT / ".core_program" / "app" / "00_initialize_project" / "init_project.py"
 
 
-def _load_init_project_module():
-    spec = importlib.util.spec_from_file_location("artifactforge_init_project", INIT_PROJECT_PATH)
+def _load_init_project_module(module_name: str = "artifactforge_init_project"):
+    spec = importlib.util.spec_from_file_location(module_name, INIT_PROJECT_PATH)
     if spec is None or spec.loader is None:
         raise RuntimeError("could not load init_project.py")
     module = importlib.util.module_from_spec(spec)
@@ -23,6 +24,25 @@ def _load_init_project_module():
 
 
 init_project = _load_init_project_module()
+
+
+class InitProjectReadlineImportTest(unittest.TestCase):
+    def test_module_imports_when_readline_is_unavailable(self) -> None:
+        real_import = __import__
+
+        def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name == "readline":
+                raise ImportError("simulated missing readline")
+            return real_import(name, globals, locals, fromlist, level)
+
+        module_name = "artifactforge_init_project_without_readline"
+        sys.modules.pop(module_name, None)
+        try:
+            with mock.patch("builtins.__import__", side_effect=fake_import):
+                module = _load_init_project_module(module_name)
+            self.assertTrue(hasattr(module, "prompt_text"))
+        finally:
+            sys.modules.pop(module_name, None)
 
 
 class InitProjectGitignoreTest(unittest.TestCase):

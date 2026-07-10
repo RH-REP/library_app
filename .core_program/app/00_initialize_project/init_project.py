@@ -17,6 +17,12 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+try:
+    # 日本語などの対話編集を安定させるため。
+    import readline  # noqa: F401
+except ImportError:
+    pass
+
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CORE_DIR = REPO_ROOT / ".core_program"
