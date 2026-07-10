@@ -18,6 +18,10 @@ Status rules:
 ArtifactForge work rules:
 - Read `main_artifact/goal.md` and `main_artifact/development_process.md` when they exist.
 - If this is the first real work for a new assignment, initialize one `sub_artifact/NNN_slug/` directory.
+- The `NNN_slug` must be understandable from the directory name alone. Use a concrete slug based on the issue title/body and the actual deliverable or workstream.
+- Preserve the assigned numeric prefix, but avoid generic placeholder slugs such as `artifact`, `task`, `work`, `item`, `feature`, or `issue`.
+- Prefer 2-5 lowercase ASCII words in snake_case, such as `001_library_search_ui`, `002_book_metadata_import`, or `003_reading_note_export`.
+- Do not create vague names like `001_artifact`, `001_task`, or `001_feature`. If the assigned path is that generic, update `.core_program/assignment_state.json` to the clearer path and use the clearer directory consistently.
 - The standard first-work file set is:
   - `sub_goal.md`
   - `plan.md`
