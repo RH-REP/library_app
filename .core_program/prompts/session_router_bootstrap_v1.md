@@ -17,8 +17,9 @@ Bootstrap task:
 - Do not create, modify, or route `main_artifact/`, `sub_artifact/`, or
   `issue_log/` content during bootstrap.
 - Do not invent, print, or persist this Session_router session ID. The CLI
-  caller obtains the started session ID from Codex startup stdout and is
-  responsible for persisting it to `.core_program/assignment_state.json`.
+  caller launches this prompt in a visible terminal session, discovers the
+  started session ID from local Codex session records, and persists it to
+  `.core_program/assignment_state.json`.
 
 ArtifactForge naming:
 - User-facing primary project context belongs under `main_artifact/`.

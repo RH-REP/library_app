@@ -216,6 +216,10 @@ ArtifactForge では、issue を作業の入口にします。
 5. 判断や作業ログを `issue_log/` に残す
 6. 次の issue fetch で pending 中の作業状態を確認する
 
+実行時、ArtifactForge は Codex を非可視の `codex exec` として扱いません。
+初回の Session_router 起動や worker への prompt 送信は、Terminal に visible
+Codex session を開く形で行います。
+
 `sub_artifact/` は、成果物の単位です。
 例:
 

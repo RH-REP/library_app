@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import shlex
+import shutil
 import subprocess
+import time
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Tuple, Union
 
@@ -25,6 +30,12 @@ DEFAULT_SESSION_ROUTER_BOOTSTRAP_PROMPT = (
 )
 DEFAULT_WORKER_PROMPT = CORE_DIR / "prompts" / "worker_v1.md"
 DEFAULT_CODEX_BIN = "codex"
+DEFAULT_VISIBLE_SESSION_RUN_DIR = (
+    CORE_DIR / "app" / "02_dispatch_queue" / "data" / "visible_sessions"
+)
+DEFAULT_TERMINAL_APP = "Terminal"
+DEFAULT_VISIBLE_SESSION_WAIT_SECONDS = 60
+DEFAULT_ROUTER_ASSIGNMENT_WAIT_SECONDS = 300
 
 SESSION_ID_RE = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
@@ -241,6 +252,254 @@ def _result_ok(result: Any) -> bool:
     return True
 
 
+def _env_int(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    if value is None or not value.strip():
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+def _codex_home(codex_home: Optional[Union[str, Path]] = None) -> Path:
+    if codex_home is not None:
+        return Path(codex_home).expanduser()
+    return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex").expanduser()
+
+
+def _session_id_from_jsonl_line(line: str) -> Optional[str]:
+    try:
+        event = json.loads(line)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(event, dict):
+        return None
+    if event.get("type") != "session_meta":
+        return None
+    payload = event.get("payload")
+    if not isinstance(payload, dict):
+        return None
+    value = payload.get("session_id") or payload.get("id")
+    if value is None:
+        return None
+    session_id = str(value).strip()
+    return session_id if SESSION_ID_RE.fullmatch(session_id) else None
+
+
+def _session_id_from_path(path: Path) -> Optional[str]:
+    match = SESSION_ID_SEARCH_RE.search(str(path))
+    return match.group(0) if match else None
+
+
+def _scan_recent_codex_sessions(
+    *,
+    marker: str,
+    cutoff_time: float,
+    codex_home: Optional[Union[str, Path]] = None,
+) -> Optional[str]:
+    sessions_dir = _codex_home(codex_home) / "sessions"
+    if not sessions_dir.exists():
+        return None
+    candidates = []
+    for path in sessions_dir.glob("**/*.jsonl"):
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+        if stat.st_mtime < cutoff_time:
+            continue
+        candidates.append((stat.st_mtime, path))
+    candidates.sort(reverse=True)
+
+    for _, path in candidates:
+        found_marker = False
+        session_id = None
+        try:
+            with path.open("r", encoding="utf-8", errors="replace") as handle:
+                for line in handle:
+                    if session_id is None:
+                        session_id = _session_id_from_jsonl_line(line)
+                    if marker and marker in line:
+                        found_marker = True
+                    if session_id and found_marker:
+                        return session_id
+        except OSError:
+            continue
+        if found_marker:
+            return session_id or _session_id_from_path(path)
+    return None
+
+
+def discover_recent_codex_session_id(
+    *,
+    marker: str,
+    cutoff_time: float,
+    timeout_seconds: Optional[int] = None,
+    poll_seconds: float = 0.5,
+    codex_home: Optional[Union[str, Path]] = None,
+) -> Optional[str]:
+    timeout = (
+        DEFAULT_VISIBLE_SESSION_WAIT_SECONDS
+        if timeout_seconds is None
+        else max(0, timeout_seconds)
+    )
+    deadline = time.time() + timeout
+    while True:
+        session_id = _scan_recent_codex_sessions(
+            marker=marker,
+            cutoff_time=cutoff_time,
+            codex_home=codex_home,
+        )
+        if session_id:
+            return session_id
+        if time.time() >= deadline:
+            return None
+        time.sleep(poll_seconds)
+
+
+def _default_terminal_launcher(script_path: Path, terminal_app: str) -> Any:
+    return subprocess.run(
+        ["open", "-a", terminal_app, str(script_path)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+
+def _visible_session_command(
+    *,
+    codex_bin: str | Path,
+    repo_dir: str | Path,
+    prompt_path: Path,
+    session_id: Optional[str],
+) -> str:
+    repo = shlex.quote(str(repo_dir))
+    codex = shlex.quote(_resolve_executable(codex_bin))
+    prompt = shlex.quote(str(prompt_path))
+    if session_id:
+        return (
+            f"prompt_text=\"$(cat {prompt})\"\n"
+            f"exec {codex} resume --cd {repo} --no-alt-screen "
+            f"--include-non-interactive {shlex.quote(session_id)} \"$prompt_text\"\n"
+        )
+    return (
+        f"prompt_text=\"$(cat {prompt})\"\n"
+        f"exec {codex} --cd {repo} --no-alt-screen \"$prompt_text\"\n"
+    )
+
+
+def _resolve_executable(executable: str | Path) -> str:
+    value = str(executable)
+    if "/" in value:
+        return value
+    return shutil.which(value) or value
+
+
+def _write_visible_launch_files(
+    *,
+    prompt: str,
+    repo_dir: str | Path,
+    codex_bin: str | Path,
+    role: str,
+    session_id: Optional[str],
+    run_dir_base: str | Path = DEFAULT_VISIBLE_SESSION_RUN_DIR,
+) -> Tuple[Path, Path]:
+    timestamp = datetime.now().strftime("%Y%m%dT%H%M%S_%f")
+    safe_role = safe_filename_part(role)
+    run_dir = Path(run_dir_base) / f"{timestamp}_{os.getpid()}_{safe_role}"
+    run_dir.mkdir(parents=True, exist_ok=False)
+    prompt_path = run_dir / "prompt.md"
+    script_path = run_dir / "launch.command"
+    prompt_path.write_text(prompt, encoding="utf-8")
+    script_text = (
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        f"cd {shlex.quote(str(repo_dir))}\n"
+        "printf 'ArtifactForge visible Codex session\\n'\n"
+        f"printf 'Prompt file: %s\\n' {shlex.quote(str(prompt_path))}\n"
+        + _visible_session_command(
+            codex_bin=codex_bin,
+            repo_dir=repo_dir,
+            prompt_path=prompt_path,
+            session_id=session_id,
+        )
+    )
+    script_path.write_text(script_text, encoding="utf-8")
+    script_path.chmod(0o755)
+    return prompt_path, script_path
+
+
+def launch_visible_codex_session(
+    prompt: str,
+    *,
+    repo_dir: str | Path = REPO_ROOT,
+    codex_bin: str | Path = DEFAULT_CODEX_BIN,
+    role: str,
+    session_id: Optional[str] = None,
+    marker: str = "",
+    terminal_app: Optional[str] = None,
+    run_dir_base: str | Path = DEFAULT_VISIBLE_SESSION_RUN_DIR,
+    launcher: Callable[[Path, str], Any] = _default_terminal_launcher,
+    wait_seconds: Optional[int] = None,
+    codex_home: Optional[Union[str, Path]] = None,
+) -> CommandResult:
+    app_name = terminal_app or os.environ.get("ARTIFACTFORGE_TERMINAL_APP") or DEFAULT_TERMINAL_APP
+    cutoff_time = time.time() - 1.0
+    _, script_path = _write_visible_launch_files(
+        prompt=prompt,
+        repo_dir=repo_dir,
+        codex_bin=codex_bin,
+        role=role,
+        session_id=session_id,
+        run_dir_base=run_dir_base,
+    )
+    open_result = launcher(script_path, app_name)
+    args = ("open", "-a", app_name, str(script_path))
+    if not _result_ok(open_result):
+        return CommandResult(
+            ok=False,
+            args=args,
+            stdout=_result_text(open_result, "stdout"),
+            stderr=_result_text(open_result, "stderr"),
+            returncode=int(_result_text(open_result, "returncode") or 1),
+        )
+    if session_id:
+        return CommandResult(ok=True, args=args, stdout="", stderr="", returncode=0)
+
+    discovered_session_id = discover_recent_codex_session_id(
+        marker=marker,
+        cutoff_time=cutoff_time,
+        timeout_seconds=(
+            _env_int(
+                "ARTIFACTFORGE_VISIBLE_SESSION_WAIT_SECONDS",
+                DEFAULT_VISIBLE_SESSION_WAIT_SECONDS,
+            )
+            if wait_seconds is None
+            else wait_seconds
+        ),
+        codex_home=codex_home,
+    )
+    if not discovered_session_id:
+        return CommandResult(
+            ok=False,
+            args=args,
+            stdout="",
+            stderr=(
+                "visible Codex session was launched, but its session ID could "
+                f"not be discovered from {_codex_home(codex_home) / 'sessions'}"
+            ),
+            returncode=75,
+        )
+    return CommandResult(
+        ok=True,
+        args=args,
+        stdout=f"{discovered_session_id}\n",
+        stderr="",
+        returncode=0,
+    )
+
+
 def parse_queue_file(path: str | Path) -> QueueRecord:
     queue_path = Path(path)
     text = queue_path.read_text(encoding="utf-8")
@@ -379,6 +638,45 @@ def pending_destination(path: str | Path, pending_dir: str | Path, session_id: s
     raise DispatchError(f"could not allocate pending path for {source.name}")
 
 
+def assignment_session_id(path: str | Path, *, issue_number: int) -> Optional[str]:
+    payload = _read_assignment_state(path)
+    for assignment in payload.get("assignments", []):
+        if int(assignment.get("issue_number", -1)) != issue_number:
+            continue
+        session_id = str(assignment.get("session_id") or "").strip()
+        if session_id:
+            return session_id
+    return None
+
+
+def wait_for_assignment_session_id(
+    path: str | Path,
+    *,
+    issue_number: int,
+    timeout_seconds: Optional[int] = None,
+    poll_seconds: float = 1.0,
+) -> str:
+    timeout = (
+        _env_int(
+            "ARTIFACTFORGE_ROUTER_ASSIGNMENT_WAIT_SECONDS",
+            DEFAULT_ROUTER_ASSIGNMENT_WAIT_SECONDS,
+        )
+        if timeout_seconds is None
+        else max(0, timeout_seconds)
+    )
+    deadline = time.time() + timeout
+    while True:
+        session_id = assignment_session_id(path, issue_number=issue_number)
+        if session_id:
+            return session_id
+        if time.time() >= deadline:
+            raise DispatchError(
+                "visible Session_router did not update assignment_state.json "
+                f"for issue #{issue_number} within {timeout} seconds"
+            )
+        time.sleep(poll_seconds)
+
+
 def plan_dispatch(
     queue_path: str | Path,
     *,
@@ -448,11 +746,24 @@ def dispatch_queue_file(
                 runner,
                 plan.prompt,
                 router_session_id=plan.record.target_session_id,
+                repo_dir=repo_dir,
                 codex_bin=codex_bin,
             )
             if not result.ok:
                 raise DispatchError(result.stderr.strip() or result.stdout.strip())
-            session_id = parse_session_router_output(result.stdout)
+            if result.stdout.strip():
+                session_id = parse_session_router_output(result.stdout)
+            elif runner is _default_runner:
+                if assignment_state_path is None:
+                    raise DispatchError(
+                        "assignment_state_path is required for visible Session_router dispatch"
+                    )
+                session_id = wait_for_assignment_session_id(
+                    assignment_state_path,
+                    issue_number=plan.record.issue_number,
+                )
+            else:
+                raise DispatchError("Session_router did not return a session ID")
             worker_prompt = build_worker_prompt(
                 plan.record,
                 session_id=session_id,
@@ -462,6 +773,7 @@ def dispatch_queue_file(
                 runner,
                 session_id,
                 worker_prompt,
+                repo_dir=repo_dir,
                 codex_bin=codex_bin,
             )
             if not worker_result.ok:
@@ -477,6 +789,7 @@ def dispatch_queue_file(
                 runner,
                 plan.record.target_session_id,
                 plan.prompt,
+                repo_dir=repo_dir,
                 codex_bin=codex_bin,
             )
             if not result.ok:
@@ -617,10 +930,19 @@ def _run_resume_session(
     session_id: str,
     prompt: str,
     *,
+    repo_dir: str | Path = REPO_ROOT,
     codex_bin: str | Path = DEFAULT_CODEX_BIN,
 ) -> CommandResult:
     if hasattr(runner, "resume_session"):
         return runner.resume_session(session_id, prompt)
+    if runner is _default_runner:
+        return launch_visible_codex_session(
+            prompt,
+            repo_dir=repo_dir,
+            codex_bin=codex_bin,
+            role=f"resume_{session_id}",
+            session_id=session_id,
+        )
     args = (
         str(codex_bin),
         "resume",
@@ -635,10 +957,19 @@ def _run_start_session(
     runner: Any,
     prompt: str,
     *,
+    repo_dir: str | Path = REPO_ROOT,
     codex_bin: str | Path = DEFAULT_CODEX_BIN,
 ) -> CommandResult:
     if hasattr(runner, "start_session"):
         return runner.start_session(prompt)
+    if runner is _default_runner:
+        return launch_visible_codex_session(
+            prompt,
+            repo_dir=repo_dir,
+            codex_bin=codex_bin,
+            role="session_router_bootstrap",
+            marker="SESSION_ROUTER_BOOTSTRAP_V1_INPUT",
+        )
     return _call_runner(runner, (str(codex_bin), prompt), None)
 
 
@@ -647,6 +978,7 @@ def _run_session_router(
     prompt: str,
     *,
     router_session_id: Optional[str],
+    repo_dir: str | Path = REPO_ROOT,
     codex_bin: str | Path = DEFAULT_CODEX_BIN,
 ) -> CommandResult:
     if hasattr(runner, "run_session_router"):
@@ -656,11 +988,17 @@ def _run_session_router(
             runner,
             router_session_id,
             prompt,
+            repo_dir=repo_dir,
             codex_bin=codex_bin,
         )
     if hasattr(runner, "start_session"):
         return runner.start_session(prompt)
-    return _call_runner(runner, (str(codex_bin), prompt), None)
+    return _run_start_session(
+        runner,
+        prompt,
+        repo_dir=repo_dir,
+        codex_bin=codex_bin,
+    )
 
 
 def bootstrap_session_router(
@@ -680,7 +1018,12 @@ def bootstrap_session_router(
         repo_dir=repo_dir,
         template_path=template_path,
     )
-    result = _run_start_session(runner, prompt, codex_bin=codex_bin)
+    result = _run_start_session(
+        runner,
+        prompt,
+        repo_dir=repo_dir,
+        codex_bin=codex_bin,
+    )
     if not _result_ok(result):
         raise DispatchError(
             _result_text(result, "stderr").strip()

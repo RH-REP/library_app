@@ -10,7 +10,7 @@ Task:
 - `assignment_state.json` is the canonical ArtifactForge routing state. Do not use `.core_program/artifact_session_map.json`.
 - Check whether the issue maps to an existing `sub_artifact/NNN_slug/` before choosing a session.
 - If the mapped sub-artifact has an active session ID, do not start a new visible session. Return that existing session ID only.
-- If the mapped sub-artifact is known but inactive, or the issue needs a completely new sub-artifact, actually run `codex <prompt>` to start a new visible Codex worker session before returning. Do not merely choose or invent an ID.
+- If the mapped sub-artifact is known but inactive, or the issue needs a completely new sub-artifact, actually start a new visible Codex worker session in a terminal before returning. Do not use non-visible `codex exec`, and do not merely choose or invent an ID.
 - After a new visible session starts, update `.core_program/assignment_state.json` with the returned session ID and planned `sub_artifact/NNN_slug/` path, then return the new session ID.
 - Returning a session ID is routing only. The runner/operator must still send the worker prompt to the returned session after this router output.
 - If needed, ask the candidate session to confirm whether the issue belongs there before routing.
