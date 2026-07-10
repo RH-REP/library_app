@@ -30,6 +30,7 @@ run_issue_queue = _load_run_issue_queue_module()
 
 
 ROUTER_SESSION_ID = "11111111-1111-4111-8111-111111111111"
+WORKER_SESSION_ID = "22222222-2222-4222-8222-222222222222"
 BOOTSTRAPPED_ROUTER_SESSION_ID = "99999999-9999-4999-8999-999999999999"
 CLI_ROUTER_SESSION_ID = "88888888-8888-4888-8888-888888888888"
 
@@ -37,27 +38,34 @@ CLI_ROUTER_SESSION_ID = "88888888-8888-4888-8888-888888888888"
 def _write_assignment_state(
     path: Path,
     *,
-    router_session_id: str | None = ROUTER_SESSION_ID,
+    router_session_id=ROUTER_SESSION_ID,
+    assignments=None,
 ) -> None:
     payload = {
         "schema_version": 1,
         "next_sub_artifact_number": 1,
-        "assignments": [],
+        "assignments": list(assignments or []),
     }
     if router_session_id is not None:
         payload["router_session_id"] = router_session_id
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
-def _write_issue_snapshots(path: Path) -> None:
+def _write_issue_snapshots(
+    path: Path,
+    *,
+    issue_number: int = 1,
+    title: str = "First issue",
+    body: str = "Please build the first artifact.",
+) -> None:
     payload = {
         "issues": [
             {
-                "issue_number": 1,
+                "issue_number": issue_number,
                 "issue_state": "open",
-                "issue_url": "https://example.invalid/issues/1",
-                "title": "First issue",
-                "body": "Please build the first artifact.",
+                "issue_url": "https://example.invalid/issues/{}".format(issue_number),
+                "title": title,
+                "body": body,
                 "created_at": "2026-07-10T00:00:00+00:00",
                 "comments": [],
             }
@@ -66,7 +74,70 @@ def _write_issue_snapshots(path: Path) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
+def _dry_run_args(root: Path, assignment_state: Path, issues: Path):
+    return [
+        "--dry-run",
+        "--repo",
+        "OWNER/REPO",
+        "--issues",
+        str(issues),
+        "--assignment-state",
+        str(assignment_state),
+        "--queue-dir",
+        str(root / "queue"),
+        "--pending-dir",
+        str(root / "pending"),
+        "--archive-dir",
+        str(root / "archive"),
+    ]
+
+
 class RunIssueQueueTests(unittest.TestCase):
+    def test_missing_router_id_worker_only_dry_run_does_not_plan_bootstrap(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            assignment_state = root / "assignment_state.json"
+            issues = root / "issues.json"
+            assignment = {
+                "issue_number": 2,
+                "session_id": WORKER_SESSION_ID,
+                "sub_artifact_path": "sub_artifact/001_existing",
+                "status": "active",
+            }
+            _write_assignment_state(
+                assignment_state,
+                router_session_id="",
+                assignments=[assignment],
+            )
+            _write_issue_snapshots(
+                issues,
+                issue_number=2,
+                title="Existing worker issue",
+                body="Continue the existing work.",
+            )
+
+            with mock.patch.object(
+                run_issue_queue,
+                "bootstrap_session_router",
+            ) as bootstrap_session_router, mock.patch(
+                "sys.stdout",
+                new_callable=io.StringIO,
+            ) as stdout:
+                exit_code = run_issue_queue.main(
+                    _dry_run_args(root, assignment_state, issues) + ["--compact"]
+                )
+                summary = json.loads(stdout.getvalue())
+
+        self.assertEqual(0, exit_code)
+        bootstrap_session_router.assert_not_called()
+        self.assertEqual("not_started", summary["effects"]["codex_sessions"])
+        self.assertEqual(1, len(summary["queue"]["items"]))
+        self.assertEqual("worker", summary["queue"]["items"][0]["prompt_kind"])
+        self.assertEqual(
+            WORKER_SESSION_ID,
+            summary["queue"]["items"][0]["target_session_id"],
+        )
+
     def test_real_run_infers_origin_repo_when_repo_is_omitted(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -186,22 +257,7 @@ class RunIssueQueueTests(unittest.TestCase):
                 new_callable=io.StringIO,
             ) as stdout:
                 exit_code = run_issue_queue.main(
-                    [
-                        "--dry-run",
-                        "--repo",
-                        "OWNER/REPO",
-                        "--issues",
-                        str(issues),
-                        "--compact",
-                        "--assignment-state",
-                        str(assignment_state),
-                        "--queue-dir",
-                        str(root / "queue"),
-                        "--pending-dir",
-                        str(root / "pending"),
-                        "--archive-dir",
-                        str(root / "archive"),
-                    ]
+                    _dry_run_args(root, assignment_state, issues) + ["--compact"]
                 )
                 summary = json.loads(stdout.getvalue())
                 state = json.loads(assignment_state.read_text(encoding="utf-8"))
@@ -209,6 +265,7 @@ class RunIssueQueueTests(unittest.TestCase):
         self.assertEqual(0, exit_code)
         bootstrap_session_router.assert_not_called()
         self.assertEqual("router_bootstrap_planned", summary["effects"]["codex_sessions"])
+        self.assertEqual("session_router", summary["queue"]["items"][0]["prompt_kind"])
         self.assertEqual(
             run_issue_queue.PLANNED_ROUTER_SESSION_ID,
             summary["queue"]["items"][0]["target_session_id"],
