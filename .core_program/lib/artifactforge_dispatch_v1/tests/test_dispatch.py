@@ -20,14 +20,18 @@ from artifactforge_dispatch_v1.comments import (  # noqa: E402
 from artifactforge_dispatch_v1.dispatch import (  # noqa: E402
     CommandResult,
     DispatchError,
+    assignment_session_id,
     bootstrap_session_router,
     build_session_router_bootstrap_prompt,
     build_session_router_prompt,
     build_worker_prompt,
+    discover_recent_codex_session_id,
     dispatch_queue_file,
+    launch_visible_codex_session,
     parse_bootstrap_session_id,
     read_queue_record,
     validate_session_router_output,
+    wait_for_assignment_session_id,
     write_queue_record,
 )
 from artifactforge_dispatch_v1.models import QueueRecord  # noqa: E402
@@ -314,6 +318,107 @@ class DispatchTest(unittest.TestCase):
             self.assertEqual(session_id, SELECTED_SESSION_ID)
             state = json.loads(state_path.read_text(encoding="utf-8"))
             self.assertEqual(state["router_session_id"], SELECTED_SESSION_ID)
+
+    def test_visible_launch_discovers_bootstrap_session_id_from_codex_jsonl(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            codex_home = root / "codex_home"
+            run_dir = root / "runs"
+            sessions_dir = codex_home / "sessions" / "2026" / "07"
+
+            def launcher(script_path: Path, terminal_app: str) -> CommandResult:
+                self.assertEqual("Terminal", terminal_app)
+                script_text = script_path.read_text(encoding="utf-8")
+                self.assertIn("--no-alt-screen", script_text)
+                self.assertIn("prompt.md", script_text)
+                sessions_dir.mkdir(parents=True)
+                jsonl = sessions_dir / f"{SELECTED_SESSION_ID}.jsonl"
+                jsonl.write_text(
+                    "\n".join(
+                        (
+                            json.dumps(
+                                {
+                                    "type": "session_meta",
+                                    "payload": {"session_id": SELECTED_SESSION_ID},
+                                }
+                            ),
+                            "SESSION_ROUTER_BOOTSTRAP_V1_INPUT",
+                        )
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+                return CommandResult(ok=True, args=("open",), returncode=0)
+
+            result = launch_visible_codex_session(
+                "hello\nSESSION_ROUTER_BOOTSTRAP_V1_INPUT\n",
+                repo_dir=root,
+                role="session_router_bootstrap",
+                marker="SESSION_ROUTER_BOOTSTRAP_V1_INPUT",
+                run_dir_base=run_dir,
+                launcher=launcher,
+                wait_seconds=0,
+                codex_home=codex_home,
+            )
+
+            self.assertTrue(result.ok)
+            self.assertEqual(f"{SELECTED_SESSION_ID}\n", result.stdout)
+
+    def test_discover_recent_codex_session_id_requires_marker(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sessions_dir = root / "sessions"
+            sessions_dir.mkdir()
+            (sessions_dir / f"{SELECTED_SESSION_ID}.jsonl").write_text(
+                json.dumps(
+                    {
+                        "type": "session_meta",
+                        "payload": {"session_id": SELECTED_SESSION_ID},
+                    }
+                )
+                + "\n"
+                + "other prompt\n",
+                encoding="utf-8",
+            )
+
+            session_id = discover_recent_codex_session_id(
+                marker="SESSION_ROUTER_BOOTSTRAP_V1_INPUT",
+                cutoff_time=0,
+                timeout_seconds=0,
+                codex_home=root,
+            )
+
+            self.assertIsNone(session_id)
+
+    def test_wait_for_assignment_session_id_reads_router_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "assignment_state.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "router_session_id": ROUTER_SESSION_ID,
+                        "next_sub_artifact_number": 2,
+                        "assignments": [
+                            {
+                                "issue_number": 7,
+                                "session_id": SELECTED_SESSION_ID,
+                                "status": "active",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                SELECTED_SESSION_ID,
+                assignment_session_id(path, issue_number=7),
+            )
+            self.assertEqual(
+                SELECTED_SESSION_ID,
+                wait_for_assignment_session_id(path, issue_number=7, timeout_seconds=0),
+            )
 
     def test_dispatch_existing_worker_moves_queue_to_pending(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

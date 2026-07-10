@@ -82,9 +82,11 @@ The prompt source files are:
 `Session_router` routes only. It does not do worker work. The bootstrap prompt
 starts the first visible Session_router when `assignment_state.json` has
 `router_session_id: null`; its expected response is exactly
-`SESSION_ROUTER_READY`, because the CLI caller captures the started session ID
-from Codex startup stdout. Normal routing uses `session_router_v1.md`, and its
-stdout must be exactly one session ID line.
+`SESSION_ROUTER_READY`. The CLI caller launches bootstrap in a visible Terminal
+session, discovers the started session ID from local Codex session records, and
+saves it to `assignment_state.json`. Normal routing uses
+`session_router_v1.md`, and its stdout contract remains exactly one session ID
+line when a non-terminal adapter is used.
 
 `Worker` does the assigned work and writes a human-visible GitHub issue comment.
 The final line must contain a `codex-agent-v1` marker. The only v1 statuses are:
@@ -143,8 +145,9 @@ GitHub issues, writes
 `.core_program/app/01_fetch_issue/data/open_issues.json`, moves completed
 pending files to archive, and creates queue files. If
 `assignment_state.json` has no `router_session_id`, normal execution bootstraps
-the first Session_router and saves that ID before queue files are created;
-dry-run reports the bootstrap as planned without starting Codex.
+the first Session_router by opening a visible Terminal session, then saves that
+ID before queue files are created; dry-run reports the bootstrap as planned
+without starting Codex.
 
 ### Manual Router Bootstrap Recovery
 
@@ -158,10 +161,11 @@ python3 .core_program/app/01_fetch_issue/run_issue_queue.py --router-session-id 
 The provided `SESSION_ID` is saved to `.core_program/assignment_state.json` and
 reused by later runs.
 
-The second command sends queued prompts to Codex. In normal execution, successful
-dispatch moves queue files to pending. GitHub issue comments are not posted by
-default; comment posting support exists behind an explicit caller option so the
-operator can keep dispatch and posting separate.
+The second command sends queued prompts to visible Codex sessions through
+Terminal launch scripts. In normal execution, successful dispatch moves queue
+files to pending. GitHub issue comments are not posted by default; comment
+posting support exists behind an explicit caller option so the operator can keep
+dispatch and posting separate.
 
 ## Project Initialization
 

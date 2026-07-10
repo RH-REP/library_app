@@ -76,4 +76,5 @@ issue_log/000_development_process/*
 .core_program/router_session_id.txt
 .core_program/assignment_state.json
 .core_program/app/01_fetch_issue/data/
+.core_program/app/02_dispatch_queue/data/
 .core_program/dry_run_output/
