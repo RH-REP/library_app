@@ -13,6 +13,7 @@ if str(LIB_DIR) not in sys.path:
 
 from artifactforge_dispatch_v1.models import IssueComment, IssueSnapshot  # noqa: E402
 from artifactforge_dispatch_v1.queueing import (  # noqa: E402
+    RouterSessionRequired,
     build_queue_records,
     collect_issue_events,
     comment_fingerprint,
@@ -117,6 +118,30 @@ class QueueingTests(unittest.TestCase):
         self.assertEqual("worker", records[1].prompt_kind)
         self.assertEqual(WORKER_SESSION_ID, records[1].target_session_id)
         self.assertEqual("sub_artifact/001_existing", records[1].sub_artifact_path)
+
+    def test_worker_route_does_not_require_router_session_id(self) -> None:
+        assignment_state = _assignment_state()
+        assignment_state["router_session_id"] = ""
+
+        records = build_queue_records(
+            (_issue(2, title="Existing artifact", body="existing body"),),
+            assignment_state,
+        )
+
+        self.assertEqual(1, len(records))
+        self.assertEqual("worker", records[0].prompt_kind)
+        self.assertEqual(WORKER_SESSION_ID, records[0].target_session_id)
+        self.assertEqual("sub_artifact/001_existing", records[0].sub_artifact_path)
+
+    def test_router_route_reports_missing_router_session_id(self) -> None:
+        assignment_state = _assignment_state()
+        assignment_state["router_session_id"] = ""
+
+        with self.assertRaisesRegex(RouterSessionRequired, "router_session_id"):
+            build_queue_records(
+                (_issue(1, title="New artifact", body="new body"),),
+                assignment_state,
+            )
 
     def test_write_queue_files_supports_dry_run_and_real_write(self) -> None:
         issue = _issue(1, body="queue me")

@@ -49,6 +49,10 @@ class QueueFileResult:
     reason: str | None = None
 
 
+class RouterSessionRequired(ValueError):
+    pass
+
+
 def sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
@@ -204,7 +208,6 @@ def build_queue_records(
         archive_fingerprints,
         collect_existing_fingerprints(archive_dir) if archive_dir is not None else (),
     )
-    router_session_id = _router_session_id(assignment_state)
     planned_sub_artifacts: dict[int, str] = {}
     next_number = next_sub_artifact_number(assignment_state)
 
@@ -227,7 +230,7 @@ def build_queue_records(
 
         assignment = active_assignment_for_issue(assignment_state, event.issue_number)
         if reassign_required or assignment is None:
-            target_session_id = router_session_id
+            target_session_id = _router_session_id(assignment_state)
             prompt_kind = "session_router"
             previous_thread_id = marker.thread_id if marker is not None else None
             sub_artifact_path = (
@@ -450,7 +453,7 @@ def latest_marker_by_fingerprint(
 def _router_session_id(assignment_state: dict[str, Any]) -> str:
     value = str(assignment_state.get("router_session_id", "")).strip()
     if not value:
-        raise ValueError("assignment_state must include router_session_id")
+        raise RouterSessionRequired("assignment_state must include router_session_id")
     return value
 
 

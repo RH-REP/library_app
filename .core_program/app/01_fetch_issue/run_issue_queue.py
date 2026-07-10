@@ -27,7 +27,16 @@ from artifactforge_dispatch_v1.lifecycle import (  # noqa: E402
     reconcile_pending_from_issues,
 )
 from artifactforge_dispatch_v1.queueing import (  # noqa: E402
+    ARCHIVE_STATUSES,
+    PENDING_HOLD_STATUSES,
+    REASSIGN_STATUSES,
+    active_assignment_for_issue,
     build_queue_records,
+    collect_agent_markers,
+    collect_existing_fingerprints,
+    collect_issue_events,
+    latest_marker_by_fingerprint,
+    safe_filename_part,
     write_queue_files,
 )
 from artifactforge_dispatch_v1.dispatch import (  # noqa: E402
@@ -167,10 +176,14 @@ def ensure_router_session_id(
     router_session_id: str | None,
     dry_run: bool,
     repo_is_fixture: bool,
+    router_required: bool = True,
 ) -> str:
     if router_session_id_from_state(assignment_state):
         if router_session_id and not dry_run:
             write_assignment_state(assignment_state_path, assignment_state)
+        return "not_started"
+
+    if not router_required:
         return "not_started"
 
     if dry_run:
@@ -196,6 +209,56 @@ def ensure_router_session_id(
     return "router_bootstrap_started"
 
 
+def router_bootstrap_required(
+    issues: Iterable[Any],
+    assignment_state: dict[str, Any],
+    *,
+    pending_dir: str | Path,
+    archive_dir: str | Path,
+) -> bool:
+    issue_tuple = tuple(issues)
+    marker_lookup = latest_marker_by_fingerprint(collect_agent_markers(issue_tuple))
+    pending_index = fingerprint_index(collect_existing_fingerprints(pending_dir))
+    archive_index = fingerprint_index(collect_existing_fingerprints(archive_dir))
+
+    for event in collect_issue_events(issue_tuple):
+        marker = marker_lookup.get(event.trigger_fingerprint)
+        if marker is not None and marker.status in ARCHIVE_STATUSES:
+            continue
+        if fingerprint_present(archive_index, event.trigger_fingerprint):
+            continue
+
+        reassign_required = marker is not None and marker.status in REASSIGN_STATUSES
+        if not reassign_required and fingerprint_present(
+            pending_index,
+            event.trigger_fingerprint,
+        ):
+            continue
+        if marker is not None and marker.status in PENDING_HOLD_STATUSES:
+            continue
+
+        assignment = active_assignment_for_issue(assignment_state, event.issue_number)
+        if reassign_required or assignment is None:
+            return True
+    return False
+
+
+def fingerprint_index(*groups: Iterable[str]) -> frozenset[str]:
+    values = set()
+    for group in groups:
+        for fingerprint in group:
+            if not fingerprint:
+                continue
+            fingerprint_text = str(fingerprint)
+            values.add(fingerprint_text)
+            values.add(safe_filename_part(fingerprint_text))
+    return frozenset(values)
+
+
+def fingerprint_present(index: frozenset[str], fingerprint: str) -> bool:
+    return fingerprint in index or safe_filename_part(fingerprint) in index
+
+
 def queue_results_to_dict(results: Iterable[Any]) -> dict[str, object]:
     result_tuple = tuple(results)
     return {
@@ -209,6 +272,8 @@ def queue_results_to_dict(results: Iterable[Any]) -> dict[str, object]:
                 "written": result.written,
                 "reason": result.reason,
                 "issue_number": result.plan.record.issue_number,
+                "issue_title": result.plan.record.issue_title,
+                "event_type": result.plan.record.event_type,
                 "prompt_kind": result.plan.record.prompt_kind,
                 "target_session_id": result.plan.record.target_session_id,
                 "trigger_fingerprint": result.plan.record.trigger_fingerprint,
@@ -226,6 +291,106 @@ def issue_count_summary(issues: Iterable[Any]) -> dict[str, int]:
         "issues": len(issue_tuple),
         "comments": sum(len(issue.comments) for issue in issue_tuple),
     }
+
+
+def _divider() -> str:
+    return "-------"
+
+
+def _short(value: object, *, limit: int = 80) -> str:
+    text = str(value or "").strip()
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + "..."
+
+
+def _queue_item_line(item: dict[str, object]) -> str:
+    event_type = str(item.get("event_type") or "")
+    label = "body" if event_type == "issue_body" else "comment"
+    title = _short(item.get("issue_title") or "(no title)")
+    prompt_kind = str(item.get("prompt_kind") or "")
+    route = "router" if prompt_kind == "session_router" else "worker"
+    extra = []
+    if item.get("reassign_required"):
+        extra.append("reassign")
+    sub_artifact_path = str(item.get("sub_artifact_path") or "").strip()
+    if sub_artifact_path:
+        extra.append(sub_artifact_path)
+    suffix = f" ({', '.join(extra)})" if extra else ""
+    return f"#{item.get('issue_number')} {label}: {title} -> {route}{suffix}"
+
+
+def _pending_item_line(item: dict[str, object]) -> str:
+    pending = item.get("pending") if isinstance(item.get("pending"), dict) else {}
+    assert isinstance(pending, dict)
+    fingerprint = str(pending.get("trigger_fingerprint") or "")
+    session_id = _short(pending.get("session_id") or "", limit=36)
+    action = str(item.get("action") or "pending")
+    status = str(item.get("status") or item.get("reason") or "").strip()
+    detail = f" [{status}]" if status else ""
+    return f"{fingerprint} -> {action}{detail} ({session_id})"
+
+
+def _numbered_block(title: str, lines: Iterable[str], *, limit: int = 5) -> list[str]:
+    line_tuple = tuple(line for line in lines if line)
+    rendered = [f"{title} ({len(line_tuple)})", _divider()]
+    if line_tuple:
+        visible_lines = line_tuple[:limit]
+        rendered.extend(
+            f"{index}. {line}" for index, line in enumerate(visible_lines, start=1)
+        )
+        remaining_count = len(line_tuple) - len(visible_lines)
+        if remaining_count > 0:
+            rendered.append(f"... and {remaining_count} more")
+    else:
+        rendered.append("(none)")
+    rendered.append(_divider())
+    return rendered
+
+
+def human_summary(summary: dict[str, object]) -> str:
+    effects = summary.get("effects") if isinstance(summary.get("effects"), dict) else {}
+    queue = summary.get("queue") if isinstance(summary.get("queue"), dict) else {}
+    archive = summary.get("archive") if isinstance(summary.get("archive"), dict) else {}
+    assert isinstance(effects, dict)
+    assert isinstance(queue, dict)
+    assert isinstance(archive, dict)
+
+    lines = [
+        "ArtifactForge issue fetch",
+        f"repo: {summary.get('repo')}",
+        f"mode: {summary.get('mode')}",
+        f"router: {effects.get('codex_sessions')}",
+        "",
+    ]
+    queue_items = queue.get("items") if isinstance(queue.get("items"), list) else []
+    pending_items = archive.get("items") if isinstance(archive.get("items"), list) else []
+    archived_lines = [
+        _pending_item_line(item)
+        for item in pending_items
+        if isinstance(item, dict) and item.get("action") == "archive"
+    ]
+    kept_pending_lines = [
+        _pending_item_line(item)
+        for item in pending_items
+        if isinstance(item, dict) and item.get("action") != "archive"
+    ]
+
+    lines.extend(
+        _numbered_block(
+            "Found new body/comment",
+            (
+                _queue_item_line(item)
+                for item in queue_items
+                if isinstance(item, dict) and item.get("action") == "create"
+            ),
+        )
+    )
+    lines.append("")
+    lines.extend(_numbered_block("pending", kept_pending_lines))
+    lines.append("")
+    lines.extend(_numbered_block("archived", archived_lines))
+    return "\n".join(lines)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -261,12 +426,19 @@ def main(argv: list[str] | None = None) -> int:
         dry_run=args.dry_run,
         repo_is_fixture=repo_is_fixture,
     )
+    router_required = router_bootstrap_required(
+        issues,
+        assignment_state,
+        pending_dir=args.pending_dir,
+        archive_dir=args.archive_dir,
+    )
     codex_sessions_effect = ensure_router_session_id(
         assignment_state,
         args.assignment_state,
         router_session_id=args.router_session_id,
         dry_run=args.dry_run,
         repo_is_fixture=repo_is_fixture,
+        router_required=router_required,
     )
     lifecycle = reconcile_pending_from_issues(
         issues,
@@ -308,7 +480,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.compact:
         print(json.dumps(summary, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
     else:
-        print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
+        print(human_summary(summary))
     return 0
 
 
