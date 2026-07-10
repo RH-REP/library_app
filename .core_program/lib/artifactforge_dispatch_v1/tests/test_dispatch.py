@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 
 LIB_DIR = Path(__file__).resolve().parents[2]
@@ -18,9 +19,13 @@ from artifactforge_dispatch_v1.comments import (  # noqa: E402
 )
 from artifactforge_dispatch_v1.dispatch import (  # noqa: E402
     CommandResult,
+    DispatchError,
+    bootstrap_session_router,
+    build_session_router_bootstrap_prompt,
     build_session_router_prompt,
     build_worker_prompt,
     dispatch_queue_file,
+    parse_bootstrap_session_id,
     read_queue_record,
     validate_session_router_output,
     write_queue_record,
@@ -34,8 +39,16 @@ SELECTED_SESSION_ID = "33333333-3333-4333-8333-333333333333"
 
 
 class FakeCodexRunner:
-    def __init__(self, *, router_stdout: str = f"{SELECTED_SESSION_ID}\n") -> None:
+    def __init__(
+        self,
+        *,
+        router_stdout: str = f"{SELECTED_SESSION_ID}\n",
+        start_stdout: str = f"{SELECTED_SESSION_ID}\n",
+        start_result: Any = None,
+    ) -> None:
         self.router_stdout = router_stdout
+        self.start_stdout = start_stdout
+        self.start_result = start_result
         self.calls: list[tuple[str, str | None, str]] = []
 
     def resume_session(self, session_id: str, prompt: str) -> CommandResult:
@@ -48,10 +61,12 @@ class FakeCodexRunner:
 
     def start_session(self, prompt: str) -> CommandResult:
         self.calls.append(("start", None, prompt))
+        if self.start_result is not None:
+            return self.start_result
         return CommandResult(
             ok=True,
             args=("codex", prompt),
-            stdout=f"{SELECTED_SESSION_ID}\n",
+            stdout=self.start_stdout,
         )
 
     def run_session_router(
@@ -66,6 +81,26 @@ class FakeCodexRunner:
             args=("codex", "resume", "--include-non-interactive", router_session_id or "", prompt),
             stdout=self.router_stdout,
         )
+
+
+class BootstrapStartResult:
+    def __init__(
+        self,
+        *,
+        stdout: str = "",
+        stderr: str = "",
+        session_id: str | None = None,
+        router_session_id: str | None = None,
+    ) -> None:
+        self.ok = True
+        self.args = ("codex",)
+        self.stdout = stdout
+        self.stderr = stderr
+        self.returncode = 0
+        if session_id is not None:
+            self.session_id = session_id
+        if router_session_id is not None:
+            self.router_session_id = router_session_id
 
 
 class FakeCommentRunner:
@@ -110,6 +145,8 @@ class DispatchTest(unittest.TestCase):
     def test_queue_record_round_trip_and_prompt_wrapping(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             queue_path = Path(tmp) / "queue.md"
+            bootstrap_template = Path(tmp) / "bootstrap.md"
+            bootstrap_template.write_text("# Session_router bootstrap v1\n", encoding="utf-8")
             record = sample_record()
 
             write_queue_record(queue_path, record)
@@ -118,6 +155,10 @@ class DispatchTest(unittest.TestCase):
             router_prompt = build_session_router_prompt(
                 sample_record(prompt_kind="session_router", target_session_id=ROUTER_SESSION_ID)
             )
+            bootstrap_prompt = build_session_router_bootstrap_prompt(
+                repo_dir=Path(tmp),
+                template_path=bootstrap_template,
+            )
 
             self.assertEqual(parsed, record)
             self.assertIn("# Worker v1", worker_prompt)
@@ -125,6 +166,154 @@ class DispatchTest(unittest.TestCase):
             self.assertIn("issue-7-body-sha256-abc123", worker_prompt)
             self.assertIn("# Session_router v1", router_prompt)
             self.assertIn("SESSION_ROUTER_V1_INPUT", router_prompt)
+            self.assertIn("# Session_router bootstrap v1", bootstrap_prompt)
+            self.assertIn("SESSION_ROUTER_BOOTSTRAP_V1_INPUT", bootstrap_prompt)
+
+    def test_bootstrap_session_router_starts_and_saves_new_router_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_path = root / "assignment_state.json"
+            template_path = root / "bootstrap.md"
+            template_path.write_text("# Session_router bootstrap v1\n", encoding="utf-8")
+            original_assignments = [
+                {
+                    "issue_number": 7,
+                    "session_id": WORKER_SESSION_ID,
+                    "status": "active",
+                }
+            ]
+            state_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "router_session_id": None,
+                        "next_sub_artifact_number": 5,
+                        "assignments": original_assignments,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            runner = FakeCodexRunner()
+
+            session_id = bootstrap_session_router(
+                assignment_state_path=state_path,
+                repo_dir=root,
+                runner=runner,
+                template_path=template_path,
+            )
+
+            self.assertEqual(session_id, SELECTED_SESSION_ID)
+            self.assertEqual([call[0] for call in runner.calls], ["start"])
+            self.assertIn("SESSION_ROUTER_BOOTSTRAP_V1_INPUT", runner.calls[0][2])
+            self.assertIn(str(root), runner.calls[0][2])
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertEqual(state["router_session_id"], SELECTED_SESSION_ID)
+            self.assertEqual(state["next_sub_artifact_number"], 5)
+            self.assertEqual(state["assignments"], original_assignments)
+
+    def test_bootstrap_session_router_reuses_existing_router_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_path = root / "assignment_state.json"
+            state_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "router_session_id": ROUTER_SESSION_ID,
+                        "next_sub_artifact_number": 2,
+                        "assignments": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            runner = FakeCodexRunner()
+
+            session_id = bootstrap_session_router(
+                assignment_state_path=state_path,
+                runner=runner,
+                template_path=root / "missing.md",
+            )
+
+            self.assertEqual(session_id, ROUTER_SESSION_ID)
+            self.assertEqual(runner.calls, [])
+
+    def test_bootstrap_session_router_rejects_invalid_stdout(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_path = root / "assignment_state.json"
+            template_path = root / "bootstrap.md"
+            template_path.write_text("# Session_router bootstrap v1\n", encoding="utf-8")
+            runner = FakeCodexRunner(start_stdout="not-a-session-id\n")
+
+            with self.assertRaises(DispatchError):
+                bootstrap_session_router(
+                    assignment_state_path=state_path,
+                    repo_dir=root,
+                    runner=runner,
+                    template_path=template_path,
+                )
+
+    def test_parse_bootstrap_session_id_accepts_bare_uuid_stdout(self) -> None:
+        result = CommandResult(
+            ok=True,
+            args=("codex",),
+            stdout=f"{SELECTED_SESSION_ID}\n",
+        )
+
+        self.assertEqual(parse_bootstrap_session_id(result), SELECTED_SESSION_ID)
+
+    def test_parse_bootstrap_session_id_accepts_ready_banner_with_session_line(self) -> None:
+        result = CommandResult(
+            ok=True,
+            args=("codex",),
+            stdout=f"SESSION_ROUTER_READY\nSession ID: {SELECTED_SESSION_ID}\n",
+        )
+
+        self.assertEqual(parse_bootstrap_session_id(result), SELECTED_SESSION_ID)
+
+    def test_parse_bootstrap_session_id_rejects_ready_without_session_id(self) -> None:
+        result = CommandResult(
+            ok=True,
+            args=("codex",),
+            stdout="SESSION_ROUTER_READY\n",
+        )
+
+        with self.assertRaises(DispatchError):
+            parse_bootstrap_session_id(result)
+
+    def test_parse_bootstrap_session_id_rejects_multiple_uuid_candidates(self) -> None:
+        result = CommandResult(
+            ok=True,
+            args=("codex",),
+            stdout=f"SESSION_ROUTER_READY\nSession ID: {SELECTED_SESSION_ID}\n",
+            stderr=f"debug previous session {ROUTER_SESSION_ID}\n",
+        )
+
+        with self.assertRaises(DispatchError):
+            parse_bootstrap_session_id(result)
+
+    def test_bootstrap_session_router_prefers_result_session_id_attribute_over_stdout(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_path = root / "assignment_state.json"
+            template_path = root / "bootstrap.md"
+            template_path.write_text("# Session_router bootstrap v1\n", encoding="utf-8")
+            result = BootstrapStartResult(
+                session_id=SELECTED_SESSION_ID,
+                stdout=f"Session ID: {ROUTER_SESSION_ID}\n",
+            )
+            runner = FakeCodexRunner(start_result=result)
+
+            session_id = bootstrap_session_router(
+                assignment_state_path=state_path,
+                repo_dir=root,
+                runner=runner,
+                template_path=template_path,
+            )
+
+            self.assertEqual(session_id, SELECTED_SESSION_ID)
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertEqual(state["router_session_id"], SELECTED_SESSION_ID)
 
     def test_dispatch_existing_worker_moves_queue_to_pending(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
