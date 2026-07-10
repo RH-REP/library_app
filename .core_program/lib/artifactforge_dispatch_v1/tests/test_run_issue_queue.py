@@ -439,6 +439,43 @@ class RunIssueQueueTests(unittest.TestCase):
         self.assertIn("#2 comment: Demo screen -> worker", text)
         self.assertIn("pending (0)", text)
 
+    def test_human_summary_lists_pending_requeue_commands(self) -> None:
+        summary = {
+            "repo": "OWNER/REPO",
+            "mode": "real",
+            "effects": {"codex_sessions": "not_started"},
+            "queue": {"items": []},
+            "archive": {
+                "items": [
+                    {
+                        "action": "keep_pending",
+                        "reason": "no_marker",
+                        "pending": {
+                            "path": f"/repo/.core_program/pending/pending-{index}.md",
+                            "session_id": WORKER_SESSION_ID,
+                            "trigger_fingerprint": f"issue-2-comment-{index}",
+                        },
+                    }
+                    for index in range(1, 7)
+                ]
+            },
+        }
+
+        text = run_issue_queue.human_summary(
+            summary,
+            queue_dir="/repo/.core_program/queue",
+        )
+
+        self.assertIn("pending (6)", text)
+        self.assertIn("pending -> queue commands (6)", text)
+        self.assertIn(
+            "mv /repo/.core_program/pending/pending-1.md "
+            "/repo/.core_program/queue/pending-1.md",
+            text,
+        )
+        self.assertIn("... and 1 more", text)
+        self.assertNotIn("pending-6.md /repo/.core_program/queue/pending-6.md", text)
+
 
 if __name__ == "__main__":
     unittest.main()

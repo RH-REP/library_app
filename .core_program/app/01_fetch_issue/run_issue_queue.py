@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import sys
 from pathlib import Path
 from typing import Any, Iterable
@@ -331,6 +332,16 @@ def _pending_item_line(item: dict[str, object]) -> str:
     return f"{fingerprint} -> {action}{detail} ({session_id})"
 
 
+def _pending_requeue_command(item: dict[str, object], *, queue_dir: str | Path) -> str:
+    pending = item.get("pending") if isinstance(item.get("pending"), dict) else {}
+    assert isinstance(pending, dict)
+    source = str(pending.get("path") or "").strip()
+    if not source:
+        return ""
+    destination = Path(queue_dir) / Path(source).name
+    return f"mv {shlex.quote(source)} {shlex.quote(str(destination))}"
+
+
 def _numbered_block(title: str, lines: Iterable[str], *, limit: int = 5) -> list[str]:
     line_tuple = tuple(line for line in lines if line)
     rendered = [f"{title} ({len(line_tuple)})", _divider()]
@@ -348,7 +359,11 @@ def _numbered_block(title: str, lines: Iterable[str], *, limit: int = 5) -> list
     return rendered
 
 
-def human_summary(summary: dict[str, object]) -> str:
+def human_summary(
+    summary: dict[str, object],
+    *,
+    queue_dir: str | Path = DEFAULT_QUEUE_DIR,
+) -> str:
     effects = summary.get("effects") if isinstance(summary.get("effects"), dict) else {}
     queue = summary.get("queue") if isinstance(summary.get("queue"), dict) else {}
     archive = summary.get("archive") if isinstance(summary.get("archive"), dict) else {}
@@ -375,6 +390,11 @@ def human_summary(summary: dict[str, object]) -> str:
         for item in pending_items
         if isinstance(item, dict) and item.get("action") != "archive"
     ]
+    requeue_commands = [
+        _pending_requeue_command(item, queue_dir=queue_dir)
+        for item in pending_items
+        if isinstance(item, dict) and item.get("action") != "archive"
+    ]
     queued_lines = [
         _queue_item_line(item)
         for item in queue_items
@@ -395,6 +415,9 @@ def human_summary(summary: dict[str, object]) -> str:
     lines.extend(_numbered_block("already queued", queued_lines))
     lines.append("")
     lines.extend(_numbered_block("pending", kept_pending_lines))
+    if requeue_commands:
+        lines.append("")
+        lines.extend(_numbered_block("pending -> queue commands", requeue_commands))
     lines.append("")
     lines.extend(_numbered_block("archived", archived_lines))
     return "\n".join(lines)
@@ -487,7 +510,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.compact:
         print(json.dumps(summary, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
     else:
-        print(human_summary(summary))
+        print(human_summary(summary, queue_dir=args.queue_dir))
     return 0
 
 
