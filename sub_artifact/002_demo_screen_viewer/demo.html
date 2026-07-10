@@ -867,6 +867,27 @@
     <script>
       const fileData = [
         {
+          path: "main_artifact/lib/readme.md",
+          kind: "markdown",
+          tags: ["main_artifact", "lib"],
+          status: "review",
+          updated: "2026-07-10 18:05",
+          sourcePath: "../../main_artifact/lib/readme.md",
+          content: `# lib README
+
+このファイルは、Issue #2 のデモ画面で実際に選択・表示するためのサンプルライブラリ資料です。
+
+## Viewer 確認
+
+- \`main_artifact/lib/readme.md\` をフォルダツリーに表示する。
+- ファイルを選択すると右側の Markdown ビューで内容を確認できる。
+- Markdown のプレビュー、編集、分割表示の対象にする。
+
+## 位置づけ
+
+\`main_artifact/lib/\` は、今後 viewer から参照したいメイン成果物側の資料置き場として使う想定です。`
+        },
+        {
           path: "README.md",
           kind: "markdown",
           tags: ["overview", "system"],
@@ -1029,8 +1050,8 @@ PDF は最初から全機能を作り込まず、参照、検索対象化、OCR 
       ];
 
       const state = {
-        selectedPath: "README.md",
-        expanded: new Set(["knowledge", "knowledge/search", "knowledge/pdf", "note", "project", "project/libraly_app", "mydocument", "mydocument/photo", "data"]),
+        selectedPath: "main_artifact/lib/readme.md",
+        expanded: new Set(["main_artifact", "main_artifact/lib", "knowledge", "knowledge/search", "knowledge/pdf", "note", "project", "project/libraly_app", "mydocument", "mydocument/photo", "data"]),
         viewMode: "split",
         draft: "",
         dirty: false
@@ -1337,6 +1358,31 @@ PDF は最初から全機能を作り込まず、参照、検索対象化、OCR 
         return fileData.find((item) => item.path === state.selectedPath) || fileData[0];
       }
 
+      function loadSourceContent(item) {
+        if (!item.sourcePath || item.sourceLoaded || item.sourceLoading) return;
+        item.sourceLoading = true;
+        fetch(item.sourcePath, { cache: "no-store" })
+          .then((response) => {
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return response.text();
+          })
+          .then((text) => {
+            item.content = text;
+            item.sourceLoaded = true;
+            if (state.selectedPath === item.path && !state.dirty) {
+              state.draft = text;
+              renderDocument();
+              renderTree();
+            }
+          })
+          .catch(() => {
+            item.sourceLoaded = false;
+          })
+          .finally(() => {
+            item.sourceLoading = false;
+          });
+      }
+
       function isEditable(item) {
         return ["markdown", "json", "text"].includes(item.kind);
       }
@@ -1350,6 +1396,7 @@ PDF は最初から全機能を作り込まず、参照、検索対象化、OCR 
         if (item.kind === "markdown") state.viewMode = "split";
         else state.viewMode = "preview";
         renderDocument();
+        loadSourceContent(item);
         if (!options.keepTree) renderTree();
       }
 

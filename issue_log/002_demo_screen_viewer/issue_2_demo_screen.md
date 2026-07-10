@@ -19,8 +19,20 @@
 
 ## 成果
 
-- `sub_artifact/002_artifact/demo.html` を作成した。
+- `sub_artifact/002_demo_screen_viewer/demo.html` を作成した。
 - 検索、フィルター、フォルダ開閉、ファイル選択、Markdown プレビュー、Markdown 編集、保存、キャンセルを実装した。
+
+## Follow-up
+
+追加コメントで、`main_artifact/lib/readme.md` を作り、viewer で実際に見られるようにしたいという依頼があった。
+
+対応:
+
+- `main_artifact/lib/readme.md` を追加した。
+- demo viewer のツリーに `main_artifact/lib/readme.md` を追加した。
+- 初期選択ファイルを `main_artifact/lib/readme.md` にした。
+- HTTP 経由で開いた場合は実ファイルを fetch し、直接ファイルとして開いた場合は同じ内容の fallback を表示するようにした。
+- generic path `sub_artifact/002_artifact` を `sub_artifact/002_demo_screen_viewer` に改名した。
 
 ## 残課題
 

@@ -4,7 +4,8 @@ Issue #2 の依頼に対して、HTML のデモ画面を作成した。
 
 ## 作成ファイル
 
-- `sub_artifact/002_artifact/demo.html`
+- `main_artifact/lib/readme.md`
+- `sub_artifact/002_demo_screen_viewer/demo.html`
 
 ## デモ内容
 
@@ -14,6 +15,8 @@ Issue #2 の依頼に対して、HTML のデモ画面を作成した。
 - 選択したファイルを右側に表示する。
 - Markdown ファイルではプレビュー、編集、分割表示を切り替えられる。
 - 編集内容はデモ内のメモリ上で保存できる。
+- `main_artifact/lib/readme.md` をフォルダツリー内に表示し、右側 viewer で開ける。
+- デモを HTTP 経由で開いた場合は `../../main_artifact/lib/readme.md` から実ファイルを読み込む。直接ファイルとして開いた場合も同内容の fallback を表示する。
 
 ## 参照した既存資料
 
