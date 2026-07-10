@@ -15,7 +15,7 @@ from .models import AgentMarker, IssueSnapshot, PendingRecord
 MARKER_RE = re.compile(r"<!--\s*codex-agent-v1:\s*(\{.*?\})\s*-->", re.DOTALL)
 ISSUE_NUMBER_RE = re.compile(r"^issue-(\d+)-")
 PENDING_FILENAME_RE = re.compile(r"_(?=(?:issue|step2|test)-)")
-FIELD_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_ -]*)\s*:\s*(.*?)\s*$")
+FIELD_RE = re.compile(r"^\s*-?\s*([A-Za-z_][A-Za-z0-9_ -]*)\s*:\s*(.*?)\s*$")
 
 VALID_MARKER_STATUSES = frozenset(
     {"done", "reassign_required", "authentication_blocked"}
@@ -286,6 +286,68 @@ def reconcile_pending_records(
                     marker=None,
                     action="keep_pending",
                     reason="no_marker",
+                )
+            )
+            continue
+
+        if marker.status == "reassign_required":
+            if marker.thread_id and pending.session_id == marker.thread_id:
+                destination = archive_destination(pending.path, archive_dir)
+                if dry_run:
+                    results.append(
+                        PendingLifecycleResult(
+                            pending=pending,
+                            marker=marker,
+                            action="archive",
+                            status=marker.status,
+                            moved=False,
+                            archive_path=str(destination),
+                            reassign_required=True,
+                            reason="reassign_required_marker",
+                        )
+                    )
+                    continue
+
+                try:
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    Path(pending.path).rename(destination)
+                except Exception as exc:
+                    results.append(
+                        PendingLifecycleResult(
+                            pending=pending,
+                            marker=marker,
+                            action="archive",
+                            status=marker.status,
+                            moved=False,
+                            archive_path=str(destination),
+                            reassign_required=True,
+                            reason="archive_failed",
+                            error=str(exc),
+                        )
+                    )
+                    continue
+
+                results.append(
+                    PendingLifecycleResult(
+                        pending=pending,
+                        marker=marker,
+                        action="archive",
+                        status=marker.status,
+                        moved=True,
+                        archive_path=str(destination),
+                        reassign_required=True,
+                        reason="reassign_required_marker",
+                    )
+                )
+                continue
+
+            results.append(
+                PendingLifecycleResult(
+                    pending=pending,
+                    marker=marker,
+                    action="keep_pending",
+                    status=marker.status,
+                    reason="reassign_handoff_pending",
                 )
             )
             continue

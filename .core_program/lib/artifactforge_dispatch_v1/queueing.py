@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from .lifecycle import iter_pending_records
 from .models import AgentMarker, IssueComment, IssueEvent, IssueSnapshot, QueueRecord
 
 
@@ -204,6 +205,7 @@ def build_queue_records(
         pending_fingerprints,
         collect_existing_fingerprints(pending_dir) if pending_dir is not None else (),
     )
+    pending_sessions = _pending_sessions_by_fingerprint(pending_dir)
     archive_index = _fingerprint_index(
         archive_fingerprints,
         collect_existing_fingerprints(archive_dir) if archive_dir is not None else (),
@@ -220,6 +222,13 @@ def build_queue_records(
             continue
 
         reassign_required = marker is not None and marker.status in REASSIGN_STATUSES
+        previous_thread_id = marker.thread_id if marker is not None else None
+        if reassign_required and _reassign_handoff_pending_exists(
+            pending_sessions,
+            event.trigger_fingerprint,
+            previous_thread_id,
+        ):
+            continue
         if not reassign_required and _fingerprint_present(
             pending_index,
             event.trigger_fingerprint,
@@ -232,7 +241,6 @@ def build_queue_records(
         if reassign_required or assignment is None:
             target_session_id = _router_session_id(assignment_state)
             prompt_kind = "session_router"
-            previous_thread_id = marker.thread_id if marker is not None else None
             sub_artifact_path = (
                 _optional_str(assignment.get("sub_artifact_path"))
                 if assignment is not None
@@ -477,6 +485,42 @@ def _fingerprint_index(*groups: Iterable[str]) -> frozenset[str]:
 
 def _fingerprint_present(index: frozenset[str], fingerprint: str) -> bool:
     return fingerprint in index or safe_filename_part(fingerprint) in index
+
+
+def _pending_sessions_by_fingerprint(path: str | Path | None) -> dict[str, set[str]]:
+    if path is None:
+        return {}
+
+    sessions: dict[str, set[str]] = {}
+    for record in iter_pending_records(path):
+        for fingerprint in (
+            record.trigger_fingerprint,
+            safe_filename_part(record.trigger_fingerprint),
+        ):
+            sessions.setdefault(fingerprint, set()).add(record.session_id)
+    return sessions
+
+
+def _pending_sessions_for(
+    sessions_by_fingerprint: dict[str, set[str]],
+    fingerprint: str,
+) -> set[str]:
+    sessions = set(sessions_by_fingerprint.get(fingerprint, set()))
+    sessions.update(sessions_by_fingerprint.get(safe_filename_part(fingerprint), set()))
+    return sessions
+
+
+def _reassign_handoff_pending_exists(
+    sessions_by_fingerprint: dict[str, set[str]],
+    fingerprint: str,
+    previous_thread_id: str | None,
+) -> bool:
+    sessions = _pending_sessions_for(sessions_by_fingerprint, fingerprint)
+    if not sessions:
+        return False
+    if not previous_thread_id:
+        return True
+    return any(session_id != previous_thread_id for session_id in sessions)
 
 
 def _fingerprints_from_file(path: Path) -> set[str]:

@@ -15,6 +15,7 @@ if str(LIB_DIR) not in sys.path:
     sys.path.insert(0, str(LIB_DIR))
 
 from artifactforge_dispatch_v1.dispatch import (  # noqa: E402
+    DEFAULT_ARCHIVE_DIR,
     DEFAULT_CODEX_BIN,
     DEFAULT_PENDING_DIR,
     DEFAULT_QUEUE_DIR,
@@ -29,6 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Dispatch .core_program queue files.")
     parser.add_argument("--queue-dir", default=str(DEFAULT_QUEUE_DIR))
     parser.add_argument("--pending-dir", default=str(DEFAULT_PENDING_DIR))
+    parser.add_argument("--archive-dir", default=str(DEFAULT_ARCHIVE_DIR))
     parser.add_argument("--repo-dir", default=str(REPO_ROOT))
     parser.add_argument("--codex-bin", default=str(DEFAULT_CODEX_BIN))
     parser.add_argument(
@@ -51,6 +53,7 @@ def main(argv: list[str] | None = None) -> int:
     results = dispatch_queue(
         args.queue_dir,
         pending_dir=args.pending_dir,
+        archive_dir=args.archive_dir,
         repo_dir=args.repo_dir,
         codex_bin=args.codex_bin,
         dry_run=args.dry_run,

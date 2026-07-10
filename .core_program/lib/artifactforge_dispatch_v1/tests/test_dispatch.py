@@ -29,6 +29,7 @@ from artifactforge_dispatch_v1.dispatch import (  # noqa: E402
     dispatch_queue_file,
     launch_visible_codex_session,
     parse_bootstrap_session_id,
+    pending_destination,
     read_queue_record,
     validate_session_router_output,
     wait_for_assignment_session_id,
@@ -445,6 +446,99 @@ class DispatchTest(unittest.TestCase):
             self.assertTrue((pending_dir / "worker.md").exists())
             self.assertEqual(runner.calls[0][0], "resume")
             self.assertEqual(runner.calls[0][1], WORKER_SESSION_ID)
+
+    def test_pending_destination_uses_flat_numeric_suffixes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            pending_dir = root / "pending"
+            pending_dir.mkdir()
+            queue_path = root / "queue" / "worker.md"
+            (pending_dir / "worker.md").write_text("one", encoding="utf-8")
+            (pending_dir / "worker.2.md").write_text("two", encoding="utf-8")
+            (pending_dir / "worker.3.md").write_text("three", encoding="utf-8")
+
+            destination = pending_destination(queue_path, pending_dir, WORKER_SESSION_ID)
+
+        self.assertEqual("worker.4.md", destination.name)
+
+    def test_dispatch_skips_stale_queue_when_fingerprint_is_pending(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            queue_path = root / "queue" / "worker.md"
+            pending_dir = root / "pending"
+            pending_dir.mkdir()
+            record = sample_record()
+            write_queue_record(queue_path, record)
+            pending_path = pending_dir / f"{WORKER_SESSION_ID}_{record.trigger_fingerprint}.md"
+            pending_path.write_text(
+                "# ArtifactForge Issue Event\n\n"
+                "## Routing\n"
+                f"- target_session_id: {WORKER_SESSION_ID}\n\n"
+                "## Issue Event\n"
+                f"- trigger_fingerprint: {record.trigger_fingerprint}\n",
+                encoding="utf-8",
+            )
+            runner = FakeCodexRunner()
+
+            result = dispatch_queue_file(
+                queue_path,
+                runner=runner,
+                pending_dir=pending_dir,
+            )
+            queue_exists = queue_path.exists()
+
+        self.assertTrue(result.skipped)
+        self.assertEqual("skipped", result.status)
+        self.assertEqual("fingerprint_already_pending", result.skip_reason)
+        self.assertFalse(result.sent)
+        self.assertEqual([], runner.calls)
+        self.assertTrue(queue_exists)
+
+    def test_dispatch_skips_reassign_queue_when_handoff_is_already_pending(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            queue_path = root / "queue" / "router.md"
+            pending_dir = root / "pending"
+            pending_dir.mkdir()
+            record = QueueRecord(
+                issue_number=7,
+                issue_url="https://github.com/example/project/issues/7",
+                issue_title="first artifact",
+                event_type="issue_body",
+                trigger_fingerprint="issue-7-body-sha256-abc123",
+                target_session_id=ROUTER_SESSION_ID,
+                prompt_kind="session_router",
+                body="wrong worker",
+                source_id=None,
+                sub_artifact_path="sub_artifact/001_first_artifact",
+                previous_thread_id=WORKER_SESSION_ID,
+                reassign_required=True,
+            )
+            write_queue_record(queue_path, record)
+            pending_path = pending_dir / f"{ROUTER_SESSION_ID}_{record.trigger_fingerprint}.md"
+            pending_path.write_text(
+                "# ArtifactForge Issue Event\n\n"
+                "## Routing\n"
+                f"- target_session_id: {ROUTER_SESSION_ID}\n\n"
+                "## Issue Event\n"
+                f"- trigger_fingerprint: {record.trigger_fingerprint}\n",
+                encoding="utf-8",
+            )
+            runner = FakeCodexRunner()
+
+            result = dispatch_queue_file(
+                queue_path,
+                runner=runner,
+                pending_dir=pending_dir,
+            )
+            queue_exists = queue_path.exists()
+
+        self.assertTrue(result.skipped)
+        self.assertEqual("skipped", result.status)
+        self.assertEqual("reassign_handoff_already_pending", result.skip_reason)
+        self.assertFalse(result.sent)
+        self.assertEqual([], runner.calls)
+        self.assertTrue(queue_exists)
 
     def test_dispatch_router_validates_output_sends_worker_and_updates_assignment(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

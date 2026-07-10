@@ -115,6 +115,23 @@ class LifecycleTest(unittest.TestCase):
             filename_record.trigger_fingerprint,
         )
 
+    def test_reads_pending_record_from_bullet_queue_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "worker_issue-1-body-sha256-wrong.2.3.md"
+            path.write_text(
+                "# ArtifactForge Issue Event\n\n"
+                "## Routing\n"
+                "- target_session_id: session-from-bullet\n\n"
+                "## Issue Event\n"
+                "- trigger_fingerprint: issue-1-body-sha256-bullet\n",
+                encoding="utf-8",
+            )
+
+            record = read_pending_record(path)
+
+        self.assertEqual("session-from-bullet", record.session_id)
+        self.assertEqual("issue-1-body-sha256-bullet", record.trigger_fingerprint)
+
     def test_done_marker_dry_run_plans_archive_without_moving(self) -> None:
         fingerprint = "issue-1-body-sha256-done"
         with tempfile.TemporaryDirectory() as tmp:
@@ -170,7 +187,7 @@ class LifecycleTest(unittest.TestCase):
             self.assertFalse(pending_path.exists())
             self.assertTrue(Path(result.archive_path or "").exists())
 
-    def test_blocked_and_reassign_markers_keep_pending(self) -> None:
+    def test_blocked_marker_keeps_pending_and_reassign_marker_archives_rejected_worker(self) -> None:
         reassign_fingerprint = "issue-1-body-sha256-reassign"
         auth_fingerprint = "issue-2-body-sha256-auth"
         with tempfile.TemporaryDirectory() as tmp:
@@ -207,7 +224,7 @@ class LifecycleTest(unittest.TestCase):
             }
 
             self.assertEqual(
-                "keep_pending",
+                "archive",
                 result_by_fingerprint[reassign_fingerprint].action,
             )
             self.assertTrue(
@@ -221,9 +238,9 @@ class LifecycleTest(unittest.TestCase):
             self.assertTrue(
                 result_by_fingerprint[auth_fingerprint].authentication_blocked
             )
-            self.assertTrue(reassign_path.exists())
+            self.assertFalse(reassign_path.exists())
             self.assertTrue(auth_path.exists())
-            self.assertFalse(archive_dir.exists())
+            self.assertTrue(archive_dir.exists())
 
 
 if __name__ == "__main__":

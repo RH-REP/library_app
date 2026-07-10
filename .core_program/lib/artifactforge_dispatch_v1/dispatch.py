@@ -15,14 +15,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Tuple, Union
 
+from .lifecycle import iter_pending_records
 from .models import QueueRecord
-from .queueing import build_queue_markdown, safe_filename_part
+from .queueing import build_queue_markdown, collect_existing_fingerprints, safe_filename_part
 
 
 CORE_DIR = Path(__file__).resolve().parents[2]
 REPO_ROOT = CORE_DIR.parent
 DEFAULT_QUEUE_DIR = CORE_DIR / "queue"
 DEFAULT_PENDING_DIR = CORE_DIR / "pending"
+DEFAULT_ARCHIVE_DIR = CORE_DIR / "archive"
 DEFAULT_ASSIGNMENT_STATE_PATH = CORE_DIR / "assignment_state.json"
 DEFAULT_SESSION_ROUTER_PROMPT = CORE_DIR / "prompts" / "session_router_v1.md"
 DEFAULT_SESSION_ROUTER_BOOTSTRAP_PROMPT = (
@@ -91,10 +93,12 @@ class DispatchResult:
     router_session_id: Optional[str] = None
     error: Optional[str] = None
     dry_run: bool = False
+    skipped: bool = False
+    skip_reason: Optional[str] = None
 
     @property
     def ok(self) -> bool:
-        return self.error is None and (self.sent or self.dry_run)
+        return self.error is None and (self.sent or self.dry_run or self.skipped)
 
     @property
     def worker_session_id(self) -> str:
@@ -108,6 +112,8 @@ class DispatchResult:
     def status(self) -> str:
         if self.error:
             return "failed"
+        if self.skipped:
+            return "skipped"
         if self.dry_run:
             return "planned"
         return "sent" if self.sent else "not_sent"
@@ -639,10 +645,56 @@ def pending_destination(path: str | Path, pending_dir: str | Path, session_id: s
     if not candidate.exists():
         return candidate
     for index in range(2, 10_000):
-        candidate = target_dir / f"{candidate.stem}.{index}{candidate.suffix}"
+        candidate = target_dir / f"{source.stem}.{index}{source.suffix}"
         if not candidate.exists():
             return candidate
     raise DispatchError(f"could not allocate pending path for {source.name}")
+
+
+def duplicate_dispatch_reason(
+    record: QueueRecord,
+    *,
+    pending_dir: str | Path = DEFAULT_PENDING_DIR,
+    archive_dir: str | Path = DEFAULT_ARCHIVE_DIR,
+) -> Optional[str]:
+    if _fingerprint_in_index(
+        collect_existing_fingerprints(archive_dir),
+        record.trigger_fingerprint,
+    ):
+        return "fingerprint_already_archived"
+
+    pending_sessions = _pending_sessions_for_fingerprint(
+        pending_dir,
+        record.trigger_fingerprint,
+    )
+    if not pending_sessions:
+        return None
+
+    if record.reassign_required and record.previous_thread_id:
+        if all(session_id == record.previous_thread_id for session_id in pending_sessions):
+            return None
+        return "reassign_handoff_already_pending"
+
+    return "fingerprint_already_pending"
+
+
+def _pending_sessions_for_fingerprint(
+    pending_dir: str | Path,
+    fingerprint: str,
+) -> Tuple[str, ...]:
+    sessions = []
+    for record in iter_pending_records(pending_dir):
+        if _fingerprints_match(record.trigger_fingerprint, fingerprint):
+            sessions.append(record.session_id)
+    return tuple(sessions)
+
+
+def _fingerprint_in_index(fingerprints: Iterable[str], fingerprint: str) -> bool:
+    return any(_fingerprints_match(value, fingerprint) for value in fingerprints)
+
+
+def _fingerprints_match(left: str, right: str) -> bool:
+    return left == right or safe_filename_part(left) == safe_filename_part(right)
 
 
 def assignment_session_id(path: str | Path, *, issue_number: int) -> Optional[str]:
@@ -727,6 +779,7 @@ def dispatch_queue_file(
     pending_dir: str | Path = DEFAULT_PENDING_DIR,
     repo_dir: str | Path = REPO_ROOT,
     codex_bin: str | Path = DEFAULT_CODEX_BIN,
+    archive_dir: str | Path = DEFAULT_ARCHIVE_DIR,
     dry_run: bool = False,
     move_to_pending: bool = True,
     runner: Runner = _default_runner,
@@ -738,6 +791,21 @@ def dispatch_queue_file(
         repo_dir=repo_dir,
         codex_bin=codex_bin,
     )
+    skip_reason = duplicate_dispatch_reason(
+        plan.record,
+        pending_dir=pending_dir,
+        archive_dir=archive_dir,
+    )
+    if skip_reason:
+        return DispatchResult(
+            plan=plan,
+            sent=False,
+            moved_to_pending=False,
+            session_id=plan.record.target_session_id,
+            skipped=True,
+            skip_reason=skip_reason,
+            dry_run=dry_run,
+        )
     if dry_run:
         return DispatchResult(
             plan=plan,
@@ -839,6 +907,7 @@ def dispatch_queue(
     queue_dir: str | Path = DEFAULT_QUEUE_DIR,
     *,
     pending_dir: str | Path = DEFAULT_PENDING_DIR,
+    archive_dir: str | Path = DEFAULT_ARCHIVE_DIR,
     repo_dir: str | Path = REPO_ROOT,
     codex_bin: str | Path = DEFAULT_CODEX_BIN,
     dry_run: bool = False,
@@ -850,6 +919,7 @@ def dispatch_queue(
         dispatch_queue_file(
             path,
             pending_dir=pending_dir,
+            archive_dir=archive_dir,
             repo_dir=repo_dir,
             codex_bin=codex_bin,
             dry_run=dry_run,
@@ -879,6 +949,7 @@ def dispatch_results_to_dict(results: Iterable[DispatchResult]) -> Dict[str, obj
         ),
         "dry_run_count": sum(1 for result in result_tuple if result.dry_run),
         "failed_count": sum(1 for result in result_tuple if result.error),
+        "skipped_count": sum(1 for result in result_tuple if result.skipped),
         "items": [
             {
                 "queue_path": str(result.plan.queue_path),
@@ -891,6 +962,8 @@ def dispatch_results_to_dict(results: Iterable[DispatchResult]) -> Dict[str, obj
                 "sent": result.sent,
                 "moved_to_pending": result.moved_to_pending,
                 "dry_run": result.dry_run,
+                "skipped": result.skipped,
+                "skip_reason": result.skip_reason,
                 "error": result.error,
             }
             for result in result_tuple

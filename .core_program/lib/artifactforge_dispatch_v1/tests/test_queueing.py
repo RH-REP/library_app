@@ -201,6 +201,96 @@ class QueueingTests(unittest.TestCase):
         self.assertTrue(records[0].reassign_required)
         self.assertEqual(WORKER_SESSION_ID, records[0].previous_thread_id)
 
+    def test_reassign_required_old_worker_pending_still_routes_to_router(self) -> None:
+        body = "This should move to another worker"
+        fingerprint = issue_body_fingerprint(5, body)
+        marker_payload = json.dumps(
+            {
+                "thread_id": WORKER_SESSION_ID,
+                "trigger_fingerprint": fingerprint,
+                "status": "reassign_required",
+            },
+            separators=(",", ":"),
+        )
+        issue = _issue(
+            5,
+            body=body,
+            comments=(
+                _comment(
+                    "M5",
+                    f"Wrong session\n\n<!-- codex-agent-v1: {marker_payload} -->",
+                    created_at="2026-07-10T00:02:00+00:00",
+                ),
+            ),
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            pending_dir = Path(tmp) / "pending"
+            pending_dir.mkdir()
+            pending_path = pending_dir / f"{WORKER_SESSION_ID}_{fingerprint}.md"
+            pending_path.write_text(
+                "# ArtifactForge Issue Event\n\n"
+                "## Routing\n"
+                f"- target_session_id: {WORKER_SESSION_ID}\n\n"
+                "## Issue Event\n"
+                f"- trigger_fingerprint: {fingerprint}\n",
+                encoding="utf-8",
+            )
+
+            records = build_queue_records(
+                (issue,),
+                _assignment_state(),
+                pending_dir=pending_dir,
+            )
+
+        self.assertEqual(1, len(records))
+        self.assertEqual("session_router", records[0].prompt_kind)
+        self.assertEqual(WORKER_SESSION_ID, records[0].previous_thread_id)
+
+    def test_reassign_required_existing_handoff_pending_skips_requeue(self) -> None:
+        body = "This should move to another worker"
+        fingerprint = issue_body_fingerprint(5, body)
+        marker_payload = json.dumps(
+            {
+                "thread_id": WORKER_SESSION_ID,
+                "trigger_fingerprint": fingerprint,
+                "status": "reassign_required",
+            },
+            separators=(",", ":"),
+        )
+        issue = _issue(
+            5,
+            body=body,
+            comments=(
+                _comment(
+                    "M5",
+                    f"Wrong session\n\n<!-- codex-agent-v1: {marker_payload} -->",
+                    created_at="2026-07-10T00:02:00+00:00",
+                ),
+            ),
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            pending_dir = Path(tmp) / "pending"
+            pending_dir.mkdir()
+            pending_path = pending_dir / f"{ROUTER_SESSION_ID}_{fingerprint}.md"
+            pending_path.write_text(
+                "# ArtifactForge Issue Event\n\n"
+                "## Routing\n"
+                f"- target_session_id: {ROUTER_SESSION_ID}\n\n"
+                "## Issue Event\n"
+                f"- trigger_fingerprint: {fingerprint}\n",
+                encoding="utf-8",
+            )
+
+            records = build_queue_records(
+                (issue,),
+                _assignment_state(),
+                pending_dir=pending_dir,
+            )
+
+        self.assertEqual((), records)
+
 
 if __name__ == "__main__":
     unittest.main()
