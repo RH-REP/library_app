@@ -276,6 +276,7 @@ def queue_results_to_dict(results: Iterable[Any]) -> dict[str, object]:
                 "issue_title": result.plan.record.issue_title,
                 "event_type": result.plan.record.event_type,
                 "prompt_kind": result.plan.record.prompt_kind,
+                "recipient_role": result.plan.record.recipient_role,
                 "target_session_id": result.plan.record.target_session_id,
                 "trigger_fingerprint": result.plan.record.trigger_fingerprint,
                 "sub_artifact_path": result.plan.record.sub_artifact_path,
@@ -309,8 +310,9 @@ def _queue_item_line(item: dict[str, object]) -> str:
     event_type = str(item.get("event_type") or "")
     label = "body" if event_type == "issue_body" else "comment"
     title = _short(item.get("issue_title") or "(no title)")
+    recipient_role = str(item.get("recipient_role") or "")
     prompt_kind = str(item.get("prompt_kind") or "")
-    route = "router" if prompt_kind == "session_router" else "worker"
+    route = recipient_role or ("router" if prompt_kind == "session_router" else "worker")
     extra = []
     if item.get("reassign_required"):
         extra.append("reassign")

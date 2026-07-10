@@ -339,6 +339,7 @@ def build_queue_markdown(record: QueueRecord) -> str:
         "",
         "## Routing",
         f"- prompt_kind: {record.prompt_kind}",
+        f"- recipient_role: {record.recipient_role}",
         f"- target_session_id: {record.target_session_id}",
         f"- reassign_required: {_bool_text(record.reassign_required)}",
     ]

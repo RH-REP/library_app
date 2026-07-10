@@ -36,8 +36,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--assignment-state",
         default=str(DEFAULT_ASSIGNMENT_STATE_PATH),
-        help="Update this assignment_state.json after Session_router selects a worker",
+        help="Compatibility option; router-role sessions update assignment_state.json",
     )
+    parser.add_argument("--limit", type=int, default=None, help="dispatch at most this many queue files")
     parser.add_argument("--dry-run", action="store_true", help="show dispatch plan only")
     parser.add_argument(
         "--keep-queue",
@@ -59,13 +60,14 @@ def main(argv: list[str] | None = None) -> int:
         dry_run=args.dry_run,
         move_to_pending=not args.keep_queue,
         assignment_state_path=None if args.dry_run else args.assignment_state,
+        limit=args.limit,
     )
     summary = dispatch_results_to_dict(results)
     summary["mode"] = "dry-run" if args.dry_run else "real"
     summary["effects"] = {
         "codex_sessions": "not_started" if args.dry_run else "prompt_sent_when_successful",
         "queue_files": "not_moved" if args.dry_run or args.keep_queue else "moved_to_pending_when_successful",
-        "assignment_state": "not_written" if args.dry_run else "updated_for_router_results",
+        "assignment_state": "not_written_by_dispatcher",
         "github_comments": "not_posted",
     }
     if args.compact:

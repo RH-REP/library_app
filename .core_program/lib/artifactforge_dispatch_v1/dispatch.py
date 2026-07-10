@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import time
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Tuple, Union
@@ -31,6 +31,7 @@ DEFAULT_SESSION_ROUTER_BOOTSTRAP_PROMPT = (
     CORE_DIR / "prompts" / "session_router_bootstrap_v1.md"
 )
 DEFAULT_WORKER_PROMPT = CORE_DIR / "prompts" / "worker_v1.md"
+DEFAULT_DISPATCH_PROMPT = CORE_DIR / "prompts" / "dispatch_v1.md"
 DEFAULT_CODEX_BIN = "codex"
 DEFAULT_VISIBLE_SESSION_RUN_DIR = (
     CORE_DIR / "app" / "02_dispatch_queue" / "data" / "visible_sessions"
@@ -521,7 +522,7 @@ def parse_queue_file(path: str | Path) -> QueueRecord:
         event_type=fields.get("event_type", ""),
         trigger_fingerprint=fields["trigger_fingerprint"],
         target_session_id=fields["target_session_id"],
-        prompt_kind=fields.get("prompt_kind", "worker"),
+        prompt_kind=_prompt_kind_from_fields(fields),
         body=body,
         source_id=fields.get("source_id") or None,
         sub_artifact_path=fields.get("sub_artifact_path") or None,
@@ -548,31 +549,87 @@ def iter_queue_paths(queue_dir: str | Path = DEFAULT_QUEUE_DIR) -> Tuple[Path, .
     return tuple(path for path in sorted(target.glob("*.md")) if not path.name.startswith("."))
 
 
+def build_dispatch_prompt(
+    record: QueueRecord,
+    *,
+    repo_dir: str | Path = REPO_ROOT,
+    template_path: str | Path = DEFAULT_DISPATCH_PROMPT,
+) -> str:
+    payload: Dict[str, object] = {
+        "schema_version": 1,
+        "repository": str(repo_dir),
+        "recipient_role": record.recipient_role,
+        "target_session_id": record.target_session_id,
+        "issue_number": record.issue_number,
+        "issue_url": record.issue_url,
+        "trigger_fingerprint": record.trigger_fingerprint,
+        "target_events": [_record_payload(record)],
+        "sub_artifact_path": record.sub_artifact_path,
+        "reassign_required": record.reassign_required,
+        "previous_thread_id": record.previous_thread_id,
+        "safety_contract": {
+            "current_session_must_match_target_session_id": True,
+            "wrong_session_must_not_perform_work": True,
+        },
+    }
+    if record.recipient_role == "router":
+        payload["routing_contract"] = {
+            "prefer_existing_worker_check": True,
+            "avoid_previous_thread_id": bool(record.previous_thread_id),
+            "start_new_worker_only_if_no_existing_worker_accepts": True,
+            "handoff_worker_prompt_once": True,
+            "output_worker_session_id_one_line": True,
+        }
+    else:
+        payload["worker_contract"] = {
+            "process_issue_event": True,
+            "post_github_comment": True,
+            "commit_and_push_if_files_changed": True,
+        }
+        payload["github_comment_contract"] = {
+            "visible_comment_required": True,
+            "post_comment_required": True,
+            "marker_required": True,
+            "marker_statuses": [
+                "done",
+                "reassign_required",
+                "authentication_blocked",
+            ],
+        }
+        payload["git_contract"] = {
+            "commit_required_when_files_change": True,
+            "push_required": True,
+            "push_remote": "origin",
+            "do_not_push_remote": "upstream",
+        }
+
+    return (
+        "ArtifactForge Dispatch Prompt v1\n\n"
+        "You are receiving this prompt because your session ID is the dispatch target.\n\n"
+        "Expected recipient:\n"
+        f"- recipient_role: {record.recipient_role}\n"
+        f"- target_session_id: {record.target_session_id}\n\n"
+        "If your current session ID is not target_session_id, do not perform the work.\n"
+        "If recipient_role is worker, process the issue event as the assigned worker.\n"
+        "If recipient_role is router, route the issue event and hand it off to the correct worker.\n\n"
+        f"{_read_prompt(template_path)}\n\n"
+        "DISPATCH_V1_INPUT\n"
+        "```json\n"
+        f"{json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True)}\n"
+        "```\n"
+    )
+
+
 def build_session_router_prompt(
     record: QueueRecord,
     *,
     repo_dir: str | Path = REPO_ROOT,
-    template_path: str | Path = DEFAULT_SESSION_ROUTER_PROMPT,
+    template_path: str | Path = DEFAULT_DISPATCH_PROMPT,
 ) -> str:
-    payload = {
-        "schema_version": 1,
-        "repository": str(repo_dir),
-        "issue_number": record.issue_number,
-        "issue_url": record.issue_url,
-        "target_events": [asdict(record)],
-        "reassign_required": record.reassign_required,
-        "previous_thread_id": record.previous_thread_id,
-        "constraints": {
-            "session_router_must_not_do_worker_work": True,
-            "session_router_output": "one session id line only",
-        },
-    }
-    return (
-        f"{_read_prompt(template_path)}\n\n"
-        "SESSION_ROUTER_V1_INPUT\n"
-        "```json\n"
-        f"{json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True)}\n"
-        "```\n"
+    return build_dispatch_prompt(
+        replace(record, prompt_kind="session_router"),
+        repo_dir=repo_dir,
+        template_path=template_path,
     )
 
 
@@ -603,38 +660,17 @@ def build_worker_prompt(
     *,
     session_id: Optional[str] = None,
     repo_dir: str | Path = REPO_ROOT,
-    template_path: str | Path = DEFAULT_WORKER_PROMPT,
+    template_path: str | Path = DEFAULT_DISPATCH_PROMPT,
 ) -> str:
-    payload = {
-        "schema_version": 1,
-        "repository": str(repo_dir),
-        "assigned_session_id": session_id or record.target_session_id,
-        "issue_number": record.issue_number,
-        "issue_url": record.issue_url,
-        "target_events": [asdict(record)],
-        "github_comment_contract": {
-            "visible_comment_required": True,
-            "post_comment_required": True,
-            "marker_required": True,
-            "marker_statuses": [
-                "done",
-                "reassign_required",
-                "authentication_blocked",
-            ],
-        },
-        "git_contract": {
-            "commit_required_when_files_change": True,
-            "push_required": True,
-            "push_remote": "origin",
-            "do_not_push_remote": "upstream",
-        },
-    }
-    return (
-        f"{_read_prompt(template_path)}\n\n"
-        "WORKER_V1_INPUT\n"
-        "```json\n"
-        f"{json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True)}\n"
-        "```\n"
+    worker_record = replace(
+        record,
+        target_session_id=session_id or record.target_session_id,
+        prompt_kind="worker",
+    )
+    return build_dispatch_prompt(
+        worker_record,
+        repo_dir=repo_dir,
+        template_path=template_path,
     )
 
 
@@ -745,24 +781,14 @@ def plan_dispatch(
 ) -> DispatchPlan:
     path = Path(queue_path)
     record = parse_queue_file(path)
-    if record.prompt_kind == "session_router":
-        prompt = build_session_router_prompt(record, repo_dir=repo_dir)
-        command = (
-            str(codex_bin),
-            "resume",
-            "--include-non-interactive",
-            record.target_session_id,
-            prompt,
-        )
-    else:
-        prompt = build_worker_prompt(record, repo_dir=repo_dir)
-        command = (
-            str(codex_bin),
-            "resume",
-            "--include-non-interactive",
-            record.target_session_id,
-            prompt,
-        )
+    prompt = build_dispatch_prompt(record, repo_dir=repo_dir)
+    command = (
+        str(codex_bin),
+        "resume",
+        "--include-non-interactive",
+        record.target_session_id,
+        prompt,
+    )
     pending_path = pending_destination(path, pending_dir, record.target_session_id)
     return DispatchPlan(
         queue_path=path,
@@ -816,60 +842,16 @@ def dispatch_queue_file(
         )
 
     try:
-        if plan.record.prompt_kind == "session_router":
-            result = _run_session_router(
-                runner,
-                plan.prompt,
-                router_session_id=plan.record.target_session_id,
-                repo_dir=repo_dir,
-                codex_bin=codex_bin,
-            )
-            if not result.ok:
-                raise DispatchError(result.stderr.strip() or result.stdout.strip())
-            if result.stdout.strip():
-                session_id = parse_session_router_output(result.stdout)
-            elif runner is _default_runner:
-                if assignment_state_path is None:
-                    raise DispatchError(
-                        "assignment_state_path is required for visible Session_router dispatch"
-                    )
-                session_id = wait_for_assignment_session_id(
-                    assignment_state_path,
-                    issue_number=plan.record.issue_number,
-                )
-            else:
-                raise DispatchError("Session_router did not return a session ID")
-            worker_prompt = build_worker_prompt(
-                plan.record,
-                session_id=session_id,
-                repo_dir=repo_dir,
-            )
-            worker_result = _run_resume_session(
-                runner,
-                session_id,
-                worker_prompt,
-                repo_dir=repo_dir,
-                codex_bin=codex_bin,
-            )
-            if not worker_result.ok:
-                raise DispatchError(worker_result.stderr.strip() or worker_result.stdout.strip())
-            if assignment_state_path is not None:
-                update_assignment_state(
-                    assignment_state_path,
-                    plan.record,
-                    session_id=session_id,
-                )
-        else:
-            result = _run_resume_session(
-                runner,
-                plan.record.target_session_id,
-                plan.prompt,
-                repo_dir=repo_dir,
-                codex_bin=codex_bin,
-            )
-            if not result.ok:
-                raise DispatchError(result.stderr.strip() or result.stdout.strip())
-            session_id = plan.record.target_session_id
+        result = _run_resume_session(
+            runner,
+            plan.record.target_session_id,
+            plan.prompt,
+            repo_dir=repo_dir,
+            codex_bin=codex_bin,
+        )
+        if not result.ok:
+            raise DispatchError(result.stderr.strip() or result.stdout.strip())
+        session_id = plan.record.target_session_id
     except Exception as exc:
         return DispatchResult(
             plan=plan,
@@ -898,7 +880,7 @@ def dispatch_queue_file(
         moved_to_pending=moved,
         session_id=session_id,
         router_session_id=(
-            plan.record.target_session_id if plan.record.prompt_kind == "session_router" else None
+            plan.record.target_session_id if plan.record.recipient_role == "router" else None
         ),
     )
 
@@ -914,7 +896,11 @@ def dispatch_queue(
     move_to_pending: bool = True,
     runner: Runner = _default_runner,
     assignment_state_path: Optional[Union[str, Path]] = None,
+    limit: Optional[int] = None,
 ) -> Tuple[DispatchResult, ...]:
+    paths = iter_queue_paths(queue_dir)
+    if limit is not None:
+        paths = paths[: max(0, limit)]
     return tuple(
         dispatch_queue_file(
             path,
@@ -927,7 +913,7 @@ def dispatch_queue(
             runner=runner,
             assignment_state_path=assignment_state_path,
         )
-        for path in iter_queue_paths(queue_dir)
+        for path in paths
     )
 
 
@@ -956,8 +942,10 @@ def dispatch_results_to_dict(results: Iterable[DispatchResult]) -> Dict[str, obj
                 "pending_path": str(result.plan.pending_path),
                 "issue_number": result.plan.record.issue_number,
                 "prompt_kind": result.plan.record.prompt_kind,
+                "recipient_role": result.plan.record.recipient_role,
                 "target_session_id": result.plan.record.target_session_id,
                 "session_id": result.session_id,
+                "router_session_id": result.router_session_id,
                 "command": list(result.plan.command[:-1]) + ["<prompt>"],
                 "sent": result.sent,
                 "moved_to_pending": result.moved_to_pending,
@@ -980,6 +968,22 @@ def _metadata_fields(text: str) -> Dict[str, str]:
         key = match.group(1).strip().lower().replace("-", "_").replace(" ", "_")
         fields[key] = match.group(2).strip().strip("\"'`")
     return fields
+
+
+def _prompt_kind_from_fields(fields: Dict[str, str]) -> str:
+    prompt_kind = fields.get("prompt_kind", "").strip()
+    if prompt_kind:
+        return prompt_kind
+    recipient_role = fields.get("recipient_role", "").strip()
+    if recipient_role == "router":
+        return "session_router"
+    return "worker"
+
+
+def _record_payload(record: QueueRecord) -> Dict[str, object]:
+    payload: Dict[str, object] = asdict(record)
+    payload["recipient_role"] = record.recipient_role
+    return payload
 
 
 def _completed_to_command_result(

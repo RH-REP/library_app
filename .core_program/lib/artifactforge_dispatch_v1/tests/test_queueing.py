@@ -114,8 +114,10 @@ class QueueingTests(unittest.TestCase):
 
         self.assertEqual([1, 2], [record.issue_number for record in records])
         self.assertEqual("session_router", records[0].prompt_kind)
+        self.assertEqual("router", records[0].recipient_role)
         self.assertEqual(ROUTER_SESSION_ID, records[0].target_session_id)
         self.assertEqual("worker", records[1].prompt_kind)
+        self.assertEqual("worker", records[1].recipient_role)
         self.assertEqual(WORKER_SESSION_ID, records[1].target_session_id)
         self.assertEqual("sub_artifact/001_existing", records[1].sub_artifact_path)
 
@@ -130,6 +132,7 @@ class QueueingTests(unittest.TestCase):
 
         self.assertEqual(1, len(records))
         self.assertEqual("worker", records[0].prompt_kind)
+        self.assertEqual("worker", records[0].recipient_role)
         self.assertEqual(WORKER_SESSION_ID, records[0].target_session_id)
         self.assertEqual("sub_artifact/001_existing", records[0].sub_artifact_path)
 
@@ -197,6 +200,7 @@ class QueueingTests(unittest.TestCase):
 
         self.assertEqual(1, len(records))
         self.assertEqual("session_router", records[0].prompt_kind)
+        self.assertEqual("router", records[0].recipient_role)
         self.assertEqual(ROUTER_SESSION_ID, records[0].target_session_id)
         self.assertTrue(records[0].reassign_required)
         self.assertEqual(WORKER_SESSION_ID, records[0].previous_thread_id)
@@ -245,6 +249,7 @@ class QueueingTests(unittest.TestCase):
 
         self.assertEqual(1, len(records))
         self.assertEqual("session_router", records[0].prompt_kind)
+        self.assertEqual("router", records[0].recipient_role)
         self.assertEqual(WORKER_SESSION_ID, records[0].previous_thread_id)
 
     def test_reassign_required_existing_handoff_pending_skips_requeue(self) -> None:

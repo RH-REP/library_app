@@ -22,10 +22,12 @@ from artifactforge_dispatch_v1.dispatch import (  # noqa: E402
     DispatchError,
     assignment_session_id,
     bootstrap_session_router,
+    build_dispatch_prompt,
     build_session_router_bootstrap_prompt,
     build_session_router_prompt,
     build_worker_prompt,
     discover_recent_codex_session_id,
+    dispatch_queue,
     dispatch_queue_file,
     launch_visible_codex_session,
     parse_bootstrap_session_id,
@@ -131,13 +133,19 @@ class FakeCommentRunner:
         )
 
 
-def sample_record(*, prompt_kind: str = "worker", target_session_id: str = WORKER_SESSION_ID) -> QueueRecord:
+def sample_record(
+    *,
+    issue_number: int = 7,
+    prompt_kind: str = "worker",
+    target_session_id: str = WORKER_SESSION_ID,
+    trigger_fingerprint: str = "issue-7-body-sha256-abc123",
+) -> QueueRecord:
     return QueueRecord(
-        issue_number=7,
+        issue_number=issue_number,
         issue_url="https://github.com/example/project/issues/7",
         issue_title="first artifact",
         event_type="issue_body",
-        trigger_fingerprint="issue-7-body-sha256-abc123",
+        trigger_fingerprint=trigger_fingerprint,
         target_session_id=target_session_id,
         prompt_kind=prompt_kind,
         body="What do you want to build?\nA small web app",
@@ -156,6 +164,7 @@ class DispatchTest(unittest.TestCase):
 
             write_queue_record(queue_path, record)
             parsed = read_queue_record(queue_path)
+            dispatch_prompt = build_dispatch_prompt(parsed)
             worker_prompt = build_worker_prompt(parsed)
             router_prompt = build_session_router_prompt(
                 sample_record(prompt_kind="session_router", target_session_id=ROUTER_SESSION_ID)
@@ -166,17 +175,47 @@ class DispatchTest(unittest.TestCase):
             )
 
             self.assertEqual(parsed, record)
-            self.assertIn("# Worker v1", worker_prompt)
-            self.assertIn("WORKER_V1_INPUT", worker_prompt)
+            self.assertEqual("worker", parsed.recipient_role)
+            self.assertIn("ArtifactForge Dispatch Prompt v1", dispatch_prompt)
+            self.assertIn("- recipient_role: worker", worker_prompt)
+            self.assertIn(f"- target_session_id: {WORKER_SESSION_ID}", worker_prompt)
+            self.assertIn("If your current session ID is not target_session_id", worker_prompt)
+            self.assertIn("DISPATCH_V1_INPUT", worker_prompt)
             self.assertIn("issue-7-body-sha256-abc123", worker_prompt)
-            self.assertIn("Post a human-visible GitHub issue comment", worker_prompt)
-            self.assertIn("Push committed work to the user's `origin` remote", worker_prompt)
+            self.assertIn('"recipient_role": "worker"', worker_prompt)
+            self.assertIn('"worker_contract"', worker_prompt)
             self.assertIn('"post_comment_required": true', worker_prompt)
             self.assertIn('"push_required": true', worker_prompt)
-            self.assertIn("# Session_router v1", router_prompt)
-            self.assertIn("SESSION_ROUTER_V1_INPUT", router_prompt)
+            self.assertIn("- recipient_role: router", router_prompt)
+            self.assertIn(f"- target_session_id: {ROUTER_SESSION_ID}", router_prompt)
+            self.assertIn('"recipient_role": "router"', router_prompt)
+            self.assertIn('"routing_contract"', router_prompt)
+            self.assertIn("DISPATCH_V1_INPUT", router_prompt)
             self.assertIn("# Session_router bootstrap v1", bootstrap_prompt)
             self.assertIn("SESSION_ROUTER_BOOTSTRAP_V1_INPUT", bootstrap_prompt)
+
+    def test_reassign_router_prompt_avoids_previous_thread_id(self) -> None:
+        record = QueueRecord(
+            issue_number=7,
+            issue_url="https://github.com/example/project/issues/7",
+            issue_title="first artifact",
+            event_type="issue_body",
+            trigger_fingerprint="issue-7-body-sha256-abc123",
+            target_session_id=ROUTER_SESSION_ID,
+            prompt_kind="session_router",
+            body="wrong worker",
+            source_id=None,
+            sub_artifact_path="sub_artifact/001_first_artifact",
+            previous_thread_id=WORKER_SESSION_ID,
+            reassign_required=True,
+        )
+
+        prompt = build_session_router_prompt(record)
+
+        self.assertIn("- recipient_role: router", prompt)
+        self.assertIn(f'"previous_thread_id": "{WORKER_SESSION_ID}"', prompt)
+        self.assertIn('"avoid_previous_thread_id": true', prompt)
+        self.assertIn('"reassign_required": true', prompt)
 
     def test_bootstrap_session_router_starts_and_saves_new_router_id(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -444,8 +483,10 @@ class DispatchTest(unittest.TestCase):
             self.assertTrue(result.queue_moved)
             self.assertFalse(queue_path.exists())
             self.assertTrue((pending_dir / "worker.md").exists())
+            self.assertEqual(1, len(runner.calls))
             self.assertEqual(runner.calls[0][0], "resume")
             self.assertEqual(runner.calls[0][1], WORKER_SESSION_ID)
+            self.assertIn("- recipient_role: worker", runner.calls[0][2])
 
     def test_pending_destination_uses_flat_numeric_suffixes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -540,7 +581,7 @@ class DispatchTest(unittest.TestCase):
         self.assertEqual([], runner.calls)
         self.assertTrue(queue_exists)
 
-    def test_dispatch_router_validates_output_sends_worker_and_updates_assignment(self) -> None:
+    def test_dispatch_router_sends_only_router_prompt_once(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             queue_path = root / "queue" / "router.md"
@@ -561,11 +602,41 @@ class DispatchTest(unittest.TestCase):
 
             self.assertTrue(result.ok)
             self.assertEqual(result.router_session_id, ROUTER_SESSION_ID)
-            self.assertEqual(result.worker_session_id, SELECTED_SESSION_ID)
-            self.assertEqual([call[0] for call in runner.calls], ["router", "resume"])
+            self.assertEqual(result.worker_session_id, ROUTER_SESSION_ID)
+            self.assertEqual([call[0] for call in runner.calls], ["resume"])
+            self.assertEqual(runner.calls[0][1], ROUTER_SESSION_ID)
+            self.assertIn("- recipient_role: router", runner.calls[0][2])
+            self.assertIn('"recipient_role": "router"', runner.calls[0][2])
             self.assertTrue((pending_dir / "router.md").exists())
-            state = json.loads(assignment_state.read_text(encoding="utf-8"))
-            self.assertEqual(state["assignments"][0]["session_id"], SELECTED_SESSION_ID)
+            self.assertFalse(assignment_state.exists())
+
+    def test_dispatch_queue_limit_processes_only_one_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            queue_dir = root / "queue"
+            pending_dir = root / "pending"
+            write_queue_record(
+                queue_dir / "001.md",
+                sample_record(issue_number=1, trigger_fingerprint="issue-1-body-sha256-one"),
+            )
+            write_queue_record(
+                queue_dir / "002.md",
+                sample_record(issue_number=2, trigger_fingerprint="issue-2-body-sha256-two"),
+            )
+            runner = FakeCodexRunner()
+
+            results = dispatch_queue(
+                queue_dir,
+                pending_dir=pending_dir,
+                runner=runner,
+                limit=1,
+            )
+
+            self.assertEqual(1, len(results))
+            self.assertEqual(1, len(runner.calls))
+            self.assertFalse((queue_dir / "001.md").exists())
+            self.assertTrue((queue_dir / "002.md").exists())
+            self.assertTrue((pending_dir / "001.md").exists())
 
     def test_router_output_must_be_exactly_one_session_id_line(self) -> None:
         valid = validate_session_router_output(f"{SELECTED_SESSION_ID}\n")

@@ -133,6 +133,7 @@ class RunIssueQueueTests(unittest.TestCase):
         self.assertEqual("not_started", summary["effects"]["codex_sessions"])
         self.assertEqual(1, len(summary["queue"]["items"]))
         self.assertEqual("worker", summary["queue"]["items"][0]["prompt_kind"])
+        self.assertEqual("worker", summary["queue"]["items"][0]["recipient_role"])
         self.assertEqual(
             WORKER_SESSION_ID,
             summary["queue"]["items"][0]["target_session_id"],
@@ -266,6 +267,7 @@ class RunIssueQueueTests(unittest.TestCase):
         bootstrap_session_router.assert_not_called()
         self.assertEqual("router_bootstrap_planned", summary["effects"]["codex_sessions"])
         self.assertEqual("session_router", summary["queue"]["items"][0]["prompt_kind"])
+        self.assertEqual("router", summary["queue"]["items"][0]["recipient_role"])
         self.assertEqual(
             run_issue_queue.PLANNED_ROUTER_SESSION_ID,
             summary["queue"]["items"][0]["target_session_id"],
