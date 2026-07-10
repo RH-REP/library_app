@@ -46,6 +46,10 @@ python3 .core_program/app/00_initialize_project/init_project.py --dry-run
 `gh` ユーザーがデフォルトです。organization 配下に作りたい時だけ変更してください。
 `option` の質問は空欄でも構いません。
 
+初期化コマンドは、ArtifactForge 本体用の `.gitignore` をユーザー project 用に
+調整し、`sub_artifact/` と `issue_log/` の中身を通常の Git 追跡対象にします。
+`.core_program/` の queue、pending、archive、runtime state は引き続き追跡しません。
+
 すでに `origin` / `upstream` / `.core_program/assignment_state.json` が揃っている
 場合は初期化済みとして検出し、first issue の重複投稿はしません。やり直す必要が
 ある時だけ `--force` を付けてください。
@@ -132,19 +136,16 @@ git push upstream main
 ArtifactForge 本体 repository では、個別 project のデータが混ざらないように
 `.gitignore` が強めに設定されています。
 
-そのため、ユーザー project 側で `goal.md`、`development_process.md`、
-`sub_artifact/`、`issue_log/` を repository に保存したい場合は、次のどちらかを選びます。
+初期化コマンドを使ったユーザー project では、初回 push 前に `.gitignore` が
+project 用に調整され、`sub_artifact/` と `issue_log/` は通常通り追加できます。
 
-1. project 側の `.gitignore` を自分の運用に合わせて調整する
-2. 保存したい project データを明示的に追加する
-
-明示的に追加する例:
+project データを保存する例:
 
 ```sh
-git add -f main_artifact/goal.md
-git add -f main_artifact/development_process.md
-git add -f sub_artifact
-git add -f issue_log
+git add main_artifact/goal.md
+git add main_artifact/development_process.md
+git add sub_artifact
+git add issue_log
 git commit -m "Add project artifact state"
 git push origin main
 ```
@@ -303,7 +304,7 @@ git remote get-url --push upstream
 git remote set-url --push upstream DISABLED
 ```
 
-### `goal.md` が `git status` に出ない
+### `sub_artifact/` や `issue_log/` が `git status` に出ない
 
 `.gitignore` の source repository guard により、個別 project データが
 ignore されている可能性があります。
@@ -311,15 +312,17 @@ ignore されている可能性があります。
 確認:
 
 ```sh
-git check-ignore -v main_artifact/goal.md
+git check-ignore -v sub_artifact/001_example/artifact.md
+git check-ignore -v issue_log/001_example/work_log.md
 ```
 
-自分の repository に保存する場合:
+初期化コマンドを使った場合は、`sub_artifact/*` と `issue_log/*` が
+`.gitignore` から外れているはずです。手動セットアップの場合は、
+`.gitignore` から次の2行を外してください。
 
-```sh
-git add -f main_artifact/goal.md
-git commit -m "Add project goal"
-git push origin main
+```text
+sub_artifact/*
+issue_log/*
 ```
 
 ### GitHub で空ではない repository を作ってしまった
