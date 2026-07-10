@@ -31,52 +31,141 @@ class FakeGhRunner:
     def __call__(self, command: Sequence[str]) -> subprocess.CompletedProcess[str]:
         command_list = list(command)
         self.commands.append(command_list)
-        if command_list[:3] == ["gh", "issue", "list"]:
-            return subprocess.CompletedProcess(
-                command_list,
-                0,
-                stdout=json.dumps([{"number": 2}, {"number": 3}]),
-                stderr="",
-            )
-        if command_list[:3] == ["gh", "issue", "view"] and command_list[3] == "2":
+        if command_list[:3] == ["gh", "api", "graphql"]:
             return subprocess.CompletedProcess(
                 command_list,
                 0,
                 stdout=json.dumps(
                     {
-                        "number": 2,
-                        "state": "OPEN",
-                        "title": "Build first app",
-                        "url": "https://github.com/OWNER/REPO/issues/2",
-                        "body": "作りたいもの",
-                        "createdAt": "2026-07-10T00:00:00Z",
-                        "updatedAt": "2026-07-10T00:01:00Z",
-                        "comments": [
-                            {
-                                "databaseId": 55,
-                                "author": {"login": "rh"},
-                                "body": "追加要望",
-                                "createdAt": "2026-07-10T00:02:00Z",
-                                "updatedAt": "2026-07-10T00:03:00Z",
-                                "url": "https://github.com/OWNER/REPO/issues/2#issuecomment-55",
+                        "data": {
+                            "repository": {
+                                "issues": {
+                                    "pageInfo": {
+                                        "hasNextPage": False,
+                                        "endCursor": None,
+                                    },
+                                    "nodes": [
+                                        {
+                                            "number": 2,
+                                            "state": "OPEN",
+                                            "title": "Build first app",
+                                            "url": "https://github.com/OWNER/REPO/issues/2",
+                                            "body": "作りたいもの",
+                                            "createdAt": "2026-07-10T00:00:00Z",
+                                            "updatedAt": "2026-07-10T00:01:00Z",
+                                            "comments": {
+                                                "pageInfo": {
+                                                    "hasNextPage": False,
+                                                    "endCursor": None,
+                                                },
+                                                "nodes": [
+                                                    {
+                                                        "id": "IC_comment_55",
+                                                        "databaseId": 55,
+                                                        "author": {"login": "rh"},
+                                                        "body": "追加要望",
+                                                        "createdAt": "2026-07-10T00:02:00Z",
+                                                        "updatedAt": "2026-07-10T00:03:00Z",
+                                                        "url": "https://github.com/OWNER/REPO/issues/2#issuecomment-55",
+                                                    }
+                                                ],
+                                            },
+                                        }
+                                    ],
+                                }
                             }
-                        ],
+                        }
                     }
                 ),
                 stderr="",
             )
-        if command_list[:3] == ["gh", "issue", "view"] and command_list[3] == "3":
+        return subprocess.CompletedProcess(command_list, 1, stdout="", stderr="unexpected command")
+
+
+class PaginatedCommentRunner:
+    def __init__(self) -> None:
+        self.commands: list[list[str]] = []
+
+    def __call__(self, command: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        command_list = list(command)
+        self.commands.append(command_list)
+        if "number=2" in command_list:
             return subprocess.CompletedProcess(
                 command_list,
                 0,
                 stdout=json.dumps(
                     {
-                        "number": 3,
-                        "state": "CLOSED",
-                        "title": "Closed",
-                        "url": "https://github.com/OWNER/REPO/issues/3",
-                        "body": "done",
-                        "comments": [],
+                        "data": {
+                            "repository": {
+                                "issue": {
+                                    "comments": {
+                                        "pageInfo": {
+                                            "hasNextPage": False,
+                                            "endCursor": None,
+                                        },
+                                        "nodes": [
+                                            {
+                                                "id": "IC_comment_second_page",
+                                                "databaseId": 56,
+                                                "author": {"login": "rh"},
+                                                "body": "追加要望2",
+                                                "createdAt": "2026-07-10T00:04:00Z",
+                                                "updatedAt": "2026-07-10T00:05:00Z",
+                                                "url": "https://github.com/OWNER/REPO/issues/2#issuecomment-56",
+                                            }
+                                        ],
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ),
+                stderr="",
+            )
+        if command_list[:3] == ["gh", "api", "graphql"]:
+            return subprocess.CompletedProcess(
+                command_list,
+                0,
+                stdout=json.dumps(
+                    {
+                        "data": {
+                            "repository": {
+                                "issues": {
+                                    "pageInfo": {
+                                        "hasNextPage": False,
+                                        "endCursor": None,
+                                    },
+                                    "nodes": [
+                                        {
+                                            "number": 2,
+                                            "state": "OPEN",
+                                            "title": "Build first app",
+                                            "url": "https://github.com/OWNER/REPO/issues/2",
+                                            "body": "作りたいもの",
+                                            "createdAt": "2026-07-10T00:00:00Z",
+                                            "updatedAt": "2026-07-10T00:01:00Z",
+                                            "comments": {
+                                                "pageInfo": {
+                                                    "hasNextPage": True,
+                                                    "endCursor": "COMMENT_CURSOR",
+                                                },
+                                                "nodes": [
+                                                    {
+                                                        "id": "IC_comment_first_page",
+                                                        "databaseId": 55,
+                                                        "author": {"login": "rh"},
+                                                        "body": "追加要望",
+                                                        "createdAt": "2026-07-10T00:02:00Z",
+                                                        "updatedAt": "2026-07-10T00:03:00Z",
+                                                        "url": "https://github.com/OWNER/REPO/issues/2#issuecomment-55",
+                                                    }
+                                                ],
+                                            },
+                                        }
+                                    ],
+                                }
+                            }
+                        }
                     }
                 ),
                 stderr="",
@@ -140,7 +229,7 @@ class GitHubClientTests(unittest.TestCase):
         with self.assertRaisesRegex(GitHubRepoInferenceError, "--repo OWNER/REPO"):
             infer_repo_from_origin_remote("/repo/root", runner=runner)
 
-    def test_fetch_open_issues_uses_gh_and_normalizes_comments(self) -> None:
+    def test_fetch_open_issues_uses_graphql_and_normalizes_comments(self) -> None:
         runner = FakeGhRunner()
 
         issues = fetch_open_issues("OWNER/REPO", limit=50, runner=runner)
@@ -148,12 +237,26 @@ class GitHubClientTests(unittest.TestCase):
         self.assertEqual(len(issues), 1)
         self.assertEqual(issues[0].issue_number, 2)
         self.assertEqual(issues[0].issue_state, "open")
-        self.assertEqual(issues[0].comments[0].comment_id, "55")
+        self.assertEqual(issues[0].comments[0].comment_id, "IC_comment_55")
         self.assertEqual(issues[0].comments[0].author, "rh")
-        self.assertIn("--repo", runner.commands[0])
-        self.assertIn("OWNER/REPO", runner.commands[0])
-        self.assertEqual(runner.commands[1][0:4], ["gh", "issue", "view", "2"])
-        self.assertEqual(runner.commands[2][0:4], ["gh", "issue", "view", "3"])
+        self.assertEqual(len(runner.commands), 1)
+        self.assertEqual(runner.commands[0][0:3], ["gh", "api", "graphql"])
+        self.assertIn("owner=OWNER", runner.commands[0])
+        self.assertIn("name=REPO", runner.commands[0])
+
+    def test_fetch_open_issues_fetches_additional_comment_pages(self) -> None:
+        runner = PaginatedCommentRunner()
+
+        issues = fetch_open_issues("OWNER/REPO", runner=runner)
+
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(
+            [comment.comment_id for comment in issues[0].comments],
+            ["IC_comment_first_page", "IC_comment_second_page"],
+        )
+        self.assertEqual(len(runner.commands), 2)
+        self.assertIn("number=2", runner.commands[1])
+        self.assertIn("commentCursor=COMMENT_CURSOR", runner.commands[1])
 
     def test_fetch_raises_on_gh_error(self) -> None:
         def failing_runner(command: Sequence[str]) -> subprocess.CompletedProcess[str]:

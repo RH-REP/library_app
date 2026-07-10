@@ -15,6 +15,70 @@ from .models import IssueComment, IssueSnapshot
 
 
 RunCommand = Callable[[Sequence[str]], Any]
+GRAPHQL_PAGE_SIZE = 100
+OPEN_ISSUES_GRAPHQL_QUERY = """
+query($owner: String!, $name: String!, $issueLimit: Int!, $issueCursor: String) {
+  repository(owner: $owner, name: $name) {
+    issues(first: $issueLimit, after: $issueCursor, states: OPEN, orderBy: {field: CREATED_AT, direction: ASC}) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        number
+        state
+        title
+        url
+        body
+        createdAt
+        updatedAt
+        comments(first: 100) {
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+          nodes {
+            id
+            databaseId
+            author {
+              login
+            }
+            body
+            createdAt
+            updatedAt
+            url
+          }
+        }
+      }
+    }
+  }
+}
+"""
+ISSUE_COMMENTS_GRAPHQL_QUERY = """
+query($owner: String!, $name: String!, $number: Int!, $commentCursor: String) {
+  repository(owner: $owner, name: $name) {
+    issue(number: $number) {
+      comments(first: 100, after: $commentCursor) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        nodes {
+          id
+          databaseId
+          author {
+            login
+          }
+          body
+          createdAt
+          updatedAt
+          url
+        }
+      }
+    }
+  }
+}
+"""
 
 
 class GitHubFetchError(RuntimeError):
@@ -137,6 +201,17 @@ def issue_snapshot_from_gh_json(payload: Dict[str, Any]) -> IssueSnapshot:
     )
 
 
+def issue_snapshot_from_graphql_node(payload: Dict[str, Any]) -> IssueSnapshot:
+    comments_payload = payload.get("comments")
+    if isinstance(comments_payload, dict):
+        comments = comments_payload.get("nodes") or []
+    else:
+        comments = comments_payload or []
+    normalized_payload = dict(payload)
+    normalized_payload["comments"] = comments
+    return issue_snapshot_from_gh_json(normalized_payload)
+
+
 def _issue_snapshot_from_any_json(payload: Dict[str, Any]) -> IssueSnapshot:
     if "issue_number" not in payload:
         return issue_snapshot_from_gh_json(payload)
@@ -222,6 +297,153 @@ def fetch_open_issues_with_gh(
     return tuple(snapshots)
 
 
+def _repo_owner_and_name(repo: str) -> Tuple[str, str]:
+    validated = validate_repo_name(repo)
+    owner, name = validated.split("/", 1)
+    return owner, name
+
+
+def _graphql_args(
+    *,
+    query: str,
+    variables: Dict[str, Any],
+    gh_bin: str,
+) -> List[str]:
+    args = [gh_bin, "api", "graphql", "-f", f"query={query}"]
+    for key, value in variables.items():
+        if value is None:
+            continue
+        args.extend(["-F", f"{key}={value}"])
+    return args
+
+
+def _graphql_json(
+    *,
+    query: str,
+    variables: Dict[str, Any],
+    gh_bin: str,
+    runner: RunCommand,
+) -> Dict[str, Any]:
+    result = runner(_graphql_args(query=query, variables=variables, gh_bin=gh_bin))
+    if result.returncode != 0:
+        raise GitHubFetchError(result.stderr.strip() or result.stdout.strip())
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise GitHubFetchError(f"failed to parse gh GraphQL JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise GitHubFetchError("gh GraphQL returned non-object JSON")
+    errors = payload.get("errors")
+    if errors:
+        raise GitHubFetchError("gh GraphQL returned errors: " + json.dumps(errors))
+    return payload
+
+
+def _remaining_graphql_comments(
+    *,
+    owner: str,
+    name: str,
+    issue_number: int,
+    cursor: str | None,
+    gh_bin: str,
+    runner: RunCommand,
+) -> List[Dict[str, Any]]:
+    comments: List[Dict[str, Any]] = []
+    comment_cursor = cursor
+    while comment_cursor:
+        payload = _graphql_json(
+            query=ISSUE_COMMENTS_GRAPHQL_QUERY,
+            variables={
+                "owner": owner,
+                "name": name,
+                "number": issue_number,
+                "commentCursor": comment_cursor,
+            },
+            gh_bin=gh_bin,
+            runner=runner,
+        )
+        connection = (
+            payload.get("data", {})
+            .get("repository", {})
+            .get("issue", {})
+            .get("comments", {})
+        )
+        nodes = connection.get("nodes") or []
+        comments.extend(node for node in nodes if isinstance(node, dict))
+        page_info = connection.get("pageInfo") or {}
+        comment_cursor = page_info.get("endCursor") if page_info.get("hasNextPage") else None
+    return comments
+
+
+def fetch_open_issues_with_graphql(
+    repo: str,
+    *,
+    limit: int = 100,
+    gh_bin: str = "gh",
+    runner: RunCommand = _default_runner,
+) -> Tuple[IssueSnapshot, ...]:
+    owner, name = _repo_owner_and_name(repo)
+    if limit <= 0:
+        return ()
+
+    snapshots: List[IssueSnapshot] = []
+    remaining = limit
+    issue_cursor: str | None = None
+    while remaining > 0:
+        payload = _graphql_json(
+            query=OPEN_ISSUES_GRAPHQL_QUERY,
+            variables={
+                "owner": owner,
+                "name": name,
+                "issueLimit": min(remaining, GRAPHQL_PAGE_SIZE),
+                "issueCursor": issue_cursor,
+            },
+            gh_bin=gh_bin,
+            runner=runner,
+        )
+        connection = payload.get("data", {}).get("repository", {}).get("issues", {})
+        nodes = [
+            node
+            for node in connection.get("nodes") or []
+            if isinstance(node, dict)
+        ]
+        if not nodes:
+            break
+        for node in nodes:
+            comments_connection = node.get("comments")
+            if isinstance(comments_connection, dict):
+                comments = [
+                    comment
+                    for comment in comments_connection.get("nodes") or []
+                    if isinstance(comment, dict)
+                ]
+                comments_page_info = comments_connection.get("pageInfo") or {}
+                if comments_page_info.get("hasNextPage"):
+                    comments.extend(
+                        _remaining_graphql_comments(
+                            owner=owner,
+                            name=name,
+                            issue_number=int(node["number"]),
+                            cursor=comments_page_info.get("endCursor"),
+                            gh_bin=gh_bin,
+                            runner=runner,
+                        )
+                    )
+                normalized_node = dict(node)
+                normalized_node["comments"] = comments
+            else:
+                normalized_node = node
+            snapshot = issue_snapshot_from_graphql_node(normalized_node)
+            if snapshot.issue_state == "open":
+                snapshots.append(snapshot)
+        remaining = limit - len(snapshots)
+        page_info = connection.get("pageInfo") or {}
+        issue_cursor = page_info.get("endCursor") if page_info.get("hasNextPage") else None
+        if not issue_cursor:
+            break
+    return tuple(snapshots[:limit])
+
+
 def fetch_open_issues(
     repo: str,
     *,
@@ -229,7 +451,7 @@ def fetch_open_issues(
     gh_bin: str = "gh",
     runner: RunCommand = _default_runner,
 ) -> Tuple[IssueSnapshot, ...]:
-    return fetch_open_issues_with_gh(
+    return fetch_open_issues_with_graphql(
         repo,
         limit=limit,
         gh_bin=gh_bin,
