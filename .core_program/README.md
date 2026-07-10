@@ -88,8 +88,9 @@ saves it to `assignment_state.json`. Normal routing uses
 `session_router_v1.md`, and its stdout contract remains exactly one session ID
 line when a non-terminal adapter is used.
 
-`Worker` does the assigned work and writes a human-visible GitHub issue comment.
-The final line must contain a `codex-agent-v1` marker. The only v1 statuses are:
+`Worker` does the assigned work, commits and pushes repository changes to
+`origin`, and posts a human-visible GitHub issue comment. The final line of the
+posted comment must contain a `codex-agent-v1` marker. The only v1 statuses are:
 
 ```text
 done
@@ -163,9 +164,9 @@ reused by later runs.
 
 The second command sends queued prompts to visible Codex sessions through
 Terminal launch scripts. In normal execution, successful dispatch moves queue
-files to pending. GitHub issue comments are not posted by default; comment
-posting support exists behind an explicit caller option so the operator can keep
-dispatch and posting separate.
+files to pending. The dispatcher itself does not post comments; the worker
+prompt requires the visible worker session to commit, push to `origin`, and post
+the final GitHub issue comment with the marker footer.
 
 ## Project Initialization
 

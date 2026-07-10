@@ -608,12 +608,19 @@ def build_worker_prompt(
         "target_events": [asdict(record)],
         "github_comment_contract": {
             "visible_comment_required": True,
+            "post_comment_required": True,
             "marker_required": True,
             "marker_statuses": [
                 "done",
                 "reassign_required",
                 "authentication_blocked",
             ],
+        },
+        "git_contract": {
+            "commit_required_when_files_change": True,
+            "push_required": True,
+            "push_remote": "origin",
+            "do_not_push_remote": "upstream",
         },
     }
     return (
