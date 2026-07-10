@@ -1,0 +1,22 @@
+{
+  "pending": [
+    {
+      "session_id": "22222222-2222-4222-8222-222222222222",
+      "issue_number": 2,
+      "trigger_fingerprint": "issue-2-comment-C2-sha256-4e908b9942f975d2e7b4a5841ee323d3a253fafe365a08fd7c3848bc5b2bfd13",
+      "path": ".core_program/pending/22222222-2222-4222-8222-222222222222_issue-2-comment-C2-sha256-4e908b9942f975d2e7b4a5841ee323d3a253fafe365a08fd7c3848bc5b2bfd13.md"
+    },
+    {
+      "session_id": "33333333-3333-4333-8333-333333333333",
+      "issue_number": 3,
+      "trigger_fingerprint": "issue-3-comment-C3-sha256-43fa725f53ddaa1d5b46c98ba8445105219709ab8d66b59217fe04249e6488ec",
+      "path": ".core_program/pending/33333333-3333-4333-8333-333333333333_issue-3-comment-C3-sha256-43fa725f53ddaa1d5b46c98ba8445105219709ab8d66b59217fe04249e6488ec.md"
+    },
+    {
+      "session_id": "44444444-4444-4444-8444-444444444444",
+      "issue_number": 4,
+      "trigger_fingerprint": "issue-4-comment-C4-sha256-571c2ff5baa9e3d1789a0d9e3f31e2c32b43f13b1179c003f31d7ccf09e8898e",
+      "path": ".core_program/pending/44444444-4444-4444-8444-444444444444_issue-4-comment-C4-sha256-571c2ff5baa9e3d1789a0d9e3f31e2c32b43f13b1179c003f31d7ccf09e8898e.md"
+    }
+  ]
+}

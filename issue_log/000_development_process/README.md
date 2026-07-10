@@ -11,8 +11,10 @@ Created decisions:
   - Review 3: end-to-end operation
 - `README.md` gives the user a first-issue template with three core questions
   and optional supporting questions.
-- `main_artifact/goal.md` is an AI-agent template that is updated from the first issue.
-- `main_artifact/development_process.md` is an AI-agent template that is updated from the first issue and goal.
+- `README.md` includes an AI-agent comment block that users paste into the first issue.
+- `main_artifact/.goal_template.md` is the source template for project-specific `goal.md`.
+- `main_artifact/.development_process_template.md` is the source template for project-specific `development_process.md`.
+- `main_artifact/goal.md` and `main_artifact/development_process.md` are project-specific data and should not be pushed to ArtifactForge upstream.
 - `issue_log/` is the local issue-work log name.
 - `.core_program/queue/`, `.core_program/pending/`, and
   `.core_program/archive/` are the reserved internal lifecycle directories.
@@ -21,6 +23,10 @@ Created decisions:
 - Completion is detected asynchronously by later issue fetches.
 - No legacy `artifact/` or `ticket_log/` migration is included for this repository.
 
-Primary process document:
+Source process template:
+
+- `main_artifact/.development_process_template.md`
+
+Generated project process document:
 
 - `main_artifact/development_process.md`

@@ -1,0 +1,230 @@
+from __future__ import annotations
+
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+
+LIB_DIR = Path(__file__).resolve().parents[2]
+if str(LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(LIB_DIR))
+
+from artifactforge_dispatch_v1.lifecycle import (  # noqa: E402
+    collect_agent_markers_from_issues,
+    lifecycle_summary_to_dict,
+    read_pending_record,
+    reconcile_pending_from_issues,
+)
+from artifactforge_dispatch_v1.models import IssueComment, IssueSnapshot  # noqa: E402
+
+
+SESSION_ID = "11111111-1111-4111-8111-111111111111"
+
+
+def issue_with_comment(
+    marker: str,
+    *,
+    issue_number: int = 1,
+    comment_id: str = "c1",
+    created_at: str = "2026-07-10T00:00:00Z",
+) -> IssueSnapshot:
+    return IssueSnapshot(
+        issue_number=issue_number,
+        issue_state="open",
+        issue_url=f"https://github.com/example/repo/issues/{issue_number}",
+        title="Test issue",
+        body="request",
+        created_at="2026-07-09T00:00:00Z",
+        updated_at="2026-07-09T00:00:00Z",
+        comments=(
+            IssueComment(
+                comment_id=comment_id,
+                author="agent",
+                body=marker,
+                created_at=created_at,
+            ),
+        ),
+    )
+
+
+def marker_body(
+    fingerprint: str,
+    status: str,
+    *,
+    thread_id: str = SESSION_ID,
+) -> str:
+    return (
+        "Human visible comment.\n\n"
+        "<!-- codex-agent-v1: "
+        f'{{"thread_id":"{thread_id}",'
+        f'"trigger_fingerprint":"{fingerprint}",'
+        f'"status":"{status}"}}'
+        " -->"
+    )
+
+
+class LifecycleTest(unittest.TestCase):
+    def test_collects_valid_markers_from_issue_comments_only(self) -> None:
+        valid_fingerprint = "issue-1-body-sha256-valid"
+        invalid = (
+            "<!-- codex-agent-v1: "
+            '{"thread_id":"x","trigger_fingerprint":"issue-1-body-sha256-invalid",'
+            '"status":"complete"}'
+            " -->"
+        )
+        issue = issue_with_comment(
+            marker_body(valid_fingerprint, "done") + "\n" + invalid
+        )
+
+        markers = collect_agent_markers_from_issues((issue,))
+
+        self.assertEqual(1, len(markers))
+        self.assertEqual(valid_fingerprint, markers[0].trigger_fingerprint)
+        self.assertEqual("done", markers[0].status)
+        self.assertEqual("c1", markers[0].comment_id)
+
+    def test_reads_pending_record_from_markdown_metadata_or_filename(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            metadata_path = tmp_path / "anything.md"
+            metadata_path.write_text(
+                "---\n"
+                "session_id: session-from-metadata\n"
+                "trigger_fingerprint: issue-1-body-sha256-meta\n"
+                "---\n"
+                "prompt",
+                encoding="utf-8",
+            )
+            filename_path = (
+                tmp_path / "session-from-name_issue-2-comment-c1-sha256-name.md"
+            )
+            filename_path.write_text("prompt", encoding="utf-8")
+
+            metadata_record = read_pending_record(metadata_path)
+            filename_record = read_pending_record(filename_path)
+
+        self.assertEqual("session-from-metadata", metadata_record.session_id)
+        self.assertEqual(
+            "issue-1-body-sha256-meta",
+            metadata_record.trigger_fingerprint,
+        )
+        self.assertEqual("session-from-name", filename_record.session_id)
+        self.assertEqual(
+            "issue-2-comment-c1-sha256-name",
+            filename_record.trigger_fingerprint,
+        )
+
+    def test_done_marker_dry_run_plans_archive_without_moving(self) -> None:
+        fingerprint = "issue-1-body-sha256-done"
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            pending_dir = tmp_path / "pending"
+            archive_dir = tmp_path / "archive"
+            pending_dir.mkdir()
+            pending_path = pending_dir / f"{SESSION_ID}_{fingerprint}.md"
+            pending_path.write_text("prompt", encoding="utf-8")
+            issue = issue_with_comment(marker_body(fingerprint, "done"))
+
+            summary = reconcile_pending_from_issues(
+                (issue,),
+                pending_dir=pending_dir,
+                archive_dir=archive_dir,
+                dry_run=True,
+            )
+            result = summary.results[0]
+
+            self.assertEqual("archive", result.action)
+            self.assertFalse(result.moved)
+            self.assertTrue(pending_path.exists())
+            self.assertFalse(archive_dir.exists())
+            self.assertEqual(
+                [fingerprint],
+                [
+                    item["pending"]["trigger_fingerprint"]
+                    for item in lifecycle_summary_to_dict(summary)["items"]
+                ],
+            )
+
+    def test_done_marker_real_run_moves_pending_to_archive(self) -> None:
+        fingerprint = "issue-1-body-sha256-done"
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            pending_dir = tmp_path / "pending"
+            archive_dir = tmp_path / "archive"
+            pending_dir.mkdir()
+            pending_path = pending_dir / f"{SESSION_ID}_{fingerprint}.md"
+            pending_path.write_text("prompt", encoding="utf-8")
+            issue = issue_with_comment(marker_body(fingerprint, "done"))
+
+            summary = reconcile_pending_from_issues(
+                (issue,),
+                pending_dir=pending_dir,
+                archive_dir=archive_dir,
+                dry_run=False,
+            )
+            result = summary.results[0]
+
+            self.assertEqual("archive", result.action)
+            self.assertTrue(result.moved)
+            self.assertFalse(pending_path.exists())
+            self.assertTrue(Path(result.archive_path or "").exists())
+
+    def test_blocked_and_reassign_markers_keep_pending(self) -> None:
+        reassign_fingerprint = "issue-1-body-sha256-reassign"
+        auth_fingerprint = "issue-2-body-sha256-auth"
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            pending_dir = tmp_path / "pending"
+            archive_dir = tmp_path / "archive"
+            pending_dir.mkdir()
+            reassign_path = pending_dir / f"{SESSION_ID}_{reassign_fingerprint}.md"
+            auth_path = pending_dir / f"{SESSION_ID}_{auth_fingerprint}.md"
+            reassign_path.write_text("prompt", encoding="utf-8")
+            auth_path.write_text("prompt", encoding="utf-8")
+            issues = (
+                issue_with_comment(
+                    marker_body(reassign_fingerprint, "reassign_required"),
+                    issue_number=1,
+                    comment_id="c1",
+                ),
+                issue_with_comment(
+                    marker_body(auth_fingerprint, "authentication_blocked"),
+                    issue_number=2,
+                    comment_id="c2",
+                ),
+            )
+
+            summary = reconcile_pending_from_issues(
+                issues,
+                pending_dir=pending_dir,
+                archive_dir=archive_dir,
+                dry_run=False,
+            )
+            result_by_fingerprint = {
+                result.pending.trigger_fingerprint: result
+                for result in summary.results
+            }
+
+            self.assertEqual(
+                "keep_pending",
+                result_by_fingerprint[reassign_fingerprint].action,
+            )
+            self.assertTrue(
+                result_by_fingerprint[reassign_fingerprint].reassign_required
+            )
+            self.assertEqual((reassign_fingerprint,), summary.reassign_required_fingerprints)
+            self.assertEqual(
+                "keep_pending",
+                result_by_fingerprint[auth_fingerprint].action,
+            )
+            self.assertTrue(
+                result_by_fingerprint[auth_fingerprint].authentication_blocked
+            )
+            self.assertTrue(reassign_path.exists())
+            self.assertTrue(auth_path.exists())
+            self.assertFalse(archive_dir.exists())
+
+
+if __name__ == "__main__":
+    unittest.main()
