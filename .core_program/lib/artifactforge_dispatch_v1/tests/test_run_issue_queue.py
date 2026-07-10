@@ -410,6 +410,35 @@ class RunIssueQueueTests(unittest.TestCase):
         )
         self.assertEqual(CLI_ROUTER_SESSION_ID, state["router_session_id"])
 
+    def test_human_summary_lists_already_queued_items(self) -> None:
+        summary = {
+            "repo": "OWNER/REPO",
+            "mode": "real",
+            "effects": {"codex_sessions": "not_started"},
+            "queue": {
+                "items": [
+                    {
+                        "action": "skip",
+                        "event_type": "comment",
+                        "issue_number": 2,
+                        "issue_title": "Demo screen",
+                        "prompt_kind": "worker",
+                        "target_session_id": WORKER_SESSION_ID,
+                        "sub_artifact_path": "sub_artifact/002_demo_screen",
+                        "reassign_required": False,
+                    }
+                ]
+            },
+            "archive": {"items": []},
+        }
+
+        text = run_issue_queue.human_summary(summary)
+
+        self.assertIn("Found new body/comment (0)", text)
+        self.assertIn("already queued (1)", text)
+        self.assertIn("#2 comment: Demo screen -> worker", text)
+        self.assertIn("pending (0)", text)
+
 
 if __name__ == "__main__":
     unittest.main()

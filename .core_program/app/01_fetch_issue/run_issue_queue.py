@@ -375,6 +375,11 @@ def human_summary(summary: dict[str, object]) -> str:
         for item in pending_items
         if isinstance(item, dict) and item.get("action") != "archive"
     ]
+    queued_lines = [
+        _queue_item_line(item)
+        for item in queue_items
+        if isinstance(item, dict) and item.get("action") == "skip"
+    ]
 
     lines.extend(
         _numbered_block(
@@ -386,6 +391,8 @@ def human_summary(summary: dict[str, object]) -> str:
             ),
         )
     )
+    lines.append("")
+    lines.extend(_numbered_block("already queued", queued_lines))
     lines.append("")
     lines.extend(_numbered_block("pending", kept_pending_lines))
     lines.append("")
