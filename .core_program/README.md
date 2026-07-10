@@ -8,7 +8,6 @@ It owns machine-facing records only:
 - `.core_program/queue/`
 - `.core_program/pending/`
 - `.core_program/archive/`
-- `.core_program/router_session_id.txt`
 - `.core_program/assignment_state.json`
 - internal logs and diagnostics
 
@@ -21,6 +20,7 @@ It must not own user-facing artifact content. User-facing work belongs under
 .core_program/
 ├── README.md
 ├── prompts/
+│   ├── session_router_bootstrap_v1.md
 │   ├── session_router_v1.md
 │   └── worker_v1.md
 ├── app/
@@ -36,15 +36,11 @@ It must not own user-facing artifact content. User-facing work belongs under
 └── archive/
 ```
 
-Reserved future files:
+Runtime state files:
 
 ```text
-.core_program/router_session_id.txt
 .core_program/assignment_state.json
 ```
-
-`router_session_id.txt` stores the visible Session_router session ID once
-routing is implemented.
 
 `assignment_state.json` is the canonical issue-to-session-to-sub-artifact
 assignment state. It replaces the reference implementation name
@@ -79,11 +75,16 @@ The prompt source files are:
 
 ```text
 .core_program/prompts/session_router_v1.md
+.core_program/prompts/session_router_bootstrap_v1.md
 .core_program/prompts/worker_v1.md
 ```
 
-`Session_router` routes only. It does not do worker work and its stdout must be
-exactly one session ID line.
+`Session_router` routes only. It does not do worker work. The bootstrap prompt
+starts the first visible Session_router when `assignment_state.json` has
+`router_session_id: null`; its expected response is exactly
+`SESSION_ROUTER_READY`, because the CLI caller captures the started session ID
+from Codex startup stdout. Normal routing uses `session_router_v1.md`, and its
+stdout must be exactly one session ID line.
 
 `Worker` does the assigned work and writes a human-visible GitHub issue comment.
 The final line must contain a `codex-agent-v1` marker. The only v1 statuses are:
@@ -96,7 +97,8 @@ authentication_blocked
 
 ## Output Rule
 
-`Session_router` stdout is a protocol surface. It must contain exactly one
+`Session_router` stdout is a protocol surface. Bootstrap stdout must contain
+exactly `SESSION_ROUTER_READY`; normal routing stdout must contain exactly one
 session ID line and nothing else.
 
 All diagnostics must go to internal logs, stderr, or operator summaries.
@@ -130,14 +132,31 @@ python3 .core_program/app/02_dispatch_queue/run_dispatch_queue.py --dry-run
 With a real repository:
 
 ```sh
-python3 .core_program/app/01_fetch_issue/run_issue_queue.py --repo OWNER/REPO
+python3 .core_program/app/01_fetch_issue/run_issue_queue.py
 python3 .core_program/app/02_dispatch_queue/run_dispatch_queue.py
 ```
 
 The first command reports issue events, queue candidates, and pending-to-archive
-plans. In normal execution it fetches open GitHub issues, writes
+plans. It infers `OWNER/REPO` from the `origin` Git remote; pass
+`--repo OWNER/REPO` to override that. In normal execution it fetches open
+GitHub issues, writes
 `.core_program/app/01_fetch_issue/data/open_issues.json`, moves completed
-pending files to archive, and creates queue files.
+pending files to archive, and creates queue files. If
+`assignment_state.json` has no `router_session_id`, normal execution bootstraps
+the first Session_router and saves that ID before queue files are created;
+dry-run reports the bootstrap as planned without starting Codex.
+
+### Manual Router Bootstrap Recovery
+
+If automatic Session_router bootstrap fails, start or resume the Session_router
+manually, copy its Codex session ID, and rerun issue fetch with:
+
+```sh
+python3 .core_program/app/01_fetch_issue/run_issue_queue.py --router-session-id SESSION_ID
+```
+
+The provided `SESSION_ID` is saved to `.core_program/assignment_state.json` and
+reused by later runs.
 
 The second command sends queued prompts to Codex. In normal execution, successful
 dispatch moves queue files to pending. GitHub issue comments are not posted by

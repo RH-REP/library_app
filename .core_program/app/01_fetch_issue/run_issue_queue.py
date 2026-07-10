@@ -16,7 +16,9 @@ if str(LIB_DIR) not in sys.path:
     sys.path.insert(0, str(LIB_DIR))
 
 from artifactforge_dispatch_v1.github_client import (  # noqa: E402
+    GitHubRepoInferenceError,
     fetch_open_issues,
+    infer_repo_from_origin_remote,
     read_issue_snapshots,
     write_issue_snapshots,
 )
@@ -27,6 +29,9 @@ from artifactforge_dispatch_v1.lifecycle import (  # noqa: E402
 from artifactforge_dispatch_v1.queueing import (  # noqa: E402
     build_queue_records,
     write_queue_files,
+)
+from artifactforge_dispatch_v1.dispatch import (  # noqa: E402
+    bootstrap_session_router as _dispatch_bootstrap_session_router,
 )
 
 
@@ -40,6 +45,7 @@ DEFAULT_FIXTURE_ISSUES_PATH = CORE_DIR / "fixtures" / "dry_run" / "issues.json"
 DEFAULT_FIXTURE_ASSIGNMENT_STATE_PATH = (
     CORE_DIR / "fixtures" / "dry_run" / "assignment_state.json"
 )
+PLANNED_ROUTER_SESSION_ID = "ROUTER_BOOTSTRAP_PLANNED"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -93,11 +99,101 @@ def load_assignment_state(
     payload.setdefault("assignments", [])
     if router_session_id:
         payload["router_session_id"] = router_session_id
-    if not payload.get("router_session_id"):
-        raise ValueError(
-            "assignment_state must include router_session_id, or pass --router-session-id"
-        )
     return payload
+
+
+def write_assignment_state(path: str | Path, payload: dict[str, Any]) -> Path:
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return target
+
+
+def router_session_id_from_state(assignment_state: dict[str, Any]) -> str | None:
+    value = assignment_state.get("router_session_id")
+    if value is None:
+        return None
+    stripped = str(value).strip()
+    return stripped or None
+
+
+def router_session_id_from_bootstrap_result(result: Any) -> str:
+    if isinstance(result, str):
+        value = result
+    elif isinstance(result, dict):
+        value = result.get("router_session_id") or result.get("session_id")
+    else:
+        value = (
+            getattr(result, "router_session_id", None)
+            or getattr(result, "session_id", None)
+        )
+    session_id = str(value or "").strip()
+    if not session_id:
+        raise RuntimeError("router bootstrap did not return a router session ID")
+    return session_id
+
+
+def bootstrap_session_router(*, assignment_state_path: str | Path, repo_dir: str | Path) -> Any:
+    return _dispatch_bootstrap_session_router(
+        assignment_state_path=assignment_state_path,
+        repo_dir=repo_dir,
+    )
+
+
+def router_bootstrap_failed_message(
+    exc: Exception,
+    *,
+    assignment_state_path: str | Path,
+) -> str:
+    return "\n".join(
+        [
+            "router bootstrap failed: {0}".format(exc),
+            "Start or resume the Session_router manually, then rerun with:",
+            "  --router-session-id SESSION_ID",
+            "The provided SESSION_ID will be saved to assignment_state at {0}.".format(
+                assignment_state_path
+            ),
+        ]
+    )
+
+
+def ensure_router_session_id(
+    assignment_state: dict[str, Any],
+    assignment_state_path: str | Path,
+    *,
+    router_session_id: str | None,
+    dry_run: bool,
+    repo_is_fixture: bool,
+) -> str:
+    if router_session_id_from_state(assignment_state):
+        if router_session_id and not dry_run:
+            write_assignment_state(assignment_state_path, assignment_state)
+        return "not_started"
+
+    if dry_run:
+        assignment_state["router_session_id"] = PLANNED_ROUTER_SESSION_ID
+        return "not_started" if repo_is_fixture else "router_bootstrap_planned"
+
+    try:
+        bootstrap_result = bootstrap_session_router(
+            assignment_state_path=assignment_state_path,
+            repo_dir=REPO_ROOT,
+        )
+        assignment_state["router_session_id"] = router_session_id_from_bootstrap_result(
+            bootstrap_result
+        )
+    except Exception as exc:
+        raise SystemExit(
+            router_bootstrap_failed_message(
+                exc,
+                assignment_state_path=assignment_state_path,
+            )
+        )
+    write_assignment_state(assignment_state_path, assignment_state)
+    return "router_bootstrap_started"
 
 
 def queue_results_to_dict(results: Iterable[Any]) -> dict[str, object]:
@@ -146,9 +242,13 @@ def main(argv: list[str] | None = None) -> int:
         repo = "fixture"
         repo_is_fixture = True
     else:
-        if not args.repo:
-            raise SystemExit("--repo OWNER/REPO is required unless --issues is provided")
-        repo = args.repo
+        if args.repo:
+            repo = args.repo
+        else:
+            try:
+                repo = infer_repo_from_origin_remote(REPO_ROOT)
+            except GitHubRepoInferenceError as exc:
+                raise SystemExit(str(exc))
         issues = fetch_open_issues(repo, limit=args.limit, gh_bin=args.gh_bin)
         issue_source = "github"
         if not args.dry_run:
@@ -156,6 +256,13 @@ def main(argv: list[str] | None = None) -> int:
             snapshot_written = True
 
     assignment_state = load_assignment_state(
+        args.assignment_state,
+        router_session_id=args.router_session_id,
+        dry_run=args.dry_run,
+        repo_is_fixture=repo_is_fixture,
+    )
+    codex_sessions_effect = ensure_router_session_id(
+        assignment_state,
         args.assignment_state,
         router_session_id=args.router_session_id,
         dry_run=args.dry_run,
@@ -195,7 +302,7 @@ def main(argv: list[str] | None = None) -> int:
             "queue_files": "not_written" if args.dry_run else "written",
             "pending_archive_files": "not_moved" if args.dry_run else "moved_when_done",
             "github_comments": "not_posted",
-            "codex_sessions": "not_started",
+            "codex_sessions": codex_sessions_effect,
         },
     }
     if args.compact:

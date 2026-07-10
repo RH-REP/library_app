@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Tuple, Union
@@ -19,6 +20,9 @@ DEFAULT_QUEUE_DIR = CORE_DIR / "queue"
 DEFAULT_PENDING_DIR = CORE_DIR / "pending"
 DEFAULT_ASSIGNMENT_STATE_PATH = CORE_DIR / "assignment_state.json"
 DEFAULT_SESSION_ROUTER_PROMPT = CORE_DIR / "prompts" / "session_router_v1.md"
+DEFAULT_SESSION_ROUTER_BOOTSTRAP_PROMPT = (
+    CORE_DIR / "prompts" / "session_router_bootstrap_v1.md"
+)
 DEFAULT_WORKER_PROMPT = CORE_DIR / "prompts" / "worker_v1.md"
 DEFAULT_CODEX_BIN = "codex"
 
@@ -26,9 +30,17 @@ SESSION_ID_RE = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
     r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 )
+SESSION_ID_SEARCH_RE = re.compile(
+    r"(?<![0-9a-fA-F])"
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+    r"(?![0-9a-fA-F])"
+)
 FIELD_RE = re.compile(r"^\s*-\s*([A-Za-z_][A-Za-z0-9_ -]*)\s*:\s*(.*?)\s*$")
 FINGERPRINT_START_RE = re.compile(r"_(?=issue-\d+-(?:body|comment)-)")
 SUB_ARTIFACT_NUMBER_RE = re.compile(r"(?:^|/)sub_artifact/(\d{3})_[^/]+")
+BOOTSTRAP_SESSION_ID_FIELDS = ("session_id", "router_session_id")
+_MISSING = object()
 
 
 Runner = Callable[[Sequence[str], Any], Any]
@@ -128,6 +140,107 @@ def validate_session_router_output(output: str) -> RouterOutputValidation:
     return RouterOutputValidation(valid=True, session_id=lines[0])
 
 
+def parse_bootstrap_session_id(result: Any) -> str:
+    for field_name in BOOTSTRAP_SESSION_ID_FIELDS:
+        has_value, value = _result_attr(result, field_name)
+        if has_value and _has_bootstrap_session_id_value(value):
+            return _validate_bootstrap_session_id(value, f"result.{field_name}")
+
+    for field_name in BOOTSTRAP_SESSION_ID_FIELDS:
+        has_value, value = _result_mapping_value(result, field_name)
+        if has_value and _has_bootstrap_session_id_value(value):
+            return _validate_bootstrap_session_id(value, f"result[{field_name!r}]")
+
+    stdout = _result_text(result, "stdout")
+    stderr = _result_text(result, "stderr")
+    return extract_bootstrap_session_id(stdout, stderr)
+
+
+def extract_bootstrap_session_id(stdout: str = "", stderr: str = "") -> str:
+    candidates = []
+    seen = set()
+    for stream in (stdout or "", stderr or ""):
+        for match in SESSION_ID_SEARCH_RE.finditer(stream):
+            session_id = match.group(0)
+            if session_id not in seen:
+                seen.add(session_id)
+                candidates.append(session_id)
+    if len(candidates) == 1:
+        return candidates[0]
+    if not candidates:
+        raise DispatchError("bootstrap output did not include a session ID")
+    raise DispatchError(
+        "bootstrap output included multiple session ID candidates: "
+        + ", ".join(candidates)
+    )
+
+
+def _validate_bootstrap_session_id(value: Any, source: str) -> str:
+    session_id = str(value).strip() if value is not None else ""
+    if not session_id:
+        raise DispatchError(f"{source} is empty")
+    if not SESSION_ID_RE.fullmatch(session_id):
+        raise DispatchError(f"{source} is not a valid session ID")
+    return session_id
+
+
+def _has_bootstrap_session_id_value(value: Any) -> bool:
+    return bool(str(value).strip()) if value is not None else False
+
+
+def _result_attr(result: Any, field_name: str) -> Tuple[bool, Any]:
+    if not hasattr(result, field_name):
+        return False, None
+    return True, getattr(result, field_name)
+
+
+def _result_mapping_value(result: Any, field_name: str) -> Tuple[bool, Any]:
+    if isinstance(result, Mapping):
+        return field_name in result, result.get(field_name)
+    getter = getattr(result, "get", None)
+    if callable(getter):
+        try:
+            value = getter(field_name, _MISSING)
+        except TypeError:
+            try:
+                value = getter(field_name)
+            except Exception:
+                return False, None
+            if value is None:
+                return False, None
+        except Exception:
+            return False, None
+        if value is _MISSING:
+            return False, None
+        return True, value
+    return False, None
+
+
+def _result_text(result: Any, field_name: str) -> str:
+    has_value, value = _result_attr(result, field_name)
+    if not has_value:
+        has_value, value = _result_mapping_value(result, field_name)
+    if value is None:
+        return ""
+    return str(value)
+
+
+def _result_ok(result: Any) -> bool:
+    has_value, value = _result_attr(result, "ok")
+    if not has_value:
+        has_value, value = _result_mapping_value(result, "ok")
+    if has_value:
+        return bool(value)
+
+    has_value, value = _result_attr(result, "returncode")
+    if not has_value:
+        has_value, value = _result_mapping_value(result, "returncode")
+    if has_value and value is not None:
+        return int(value) == 0
+
+    return True
+
+
 def parse_queue_file(path: str | Path) -> QueueRecord:
     queue_path = Path(path)
     text = queue_path.read_text(encoding="utf-8")
@@ -192,6 +305,28 @@ def build_session_router_prompt(
     return (
         f"{_read_prompt(template_path)}\n\n"
         "SESSION_ROUTER_V1_INPUT\n"
+        "```json\n"
+        f"{json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True)}\n"
+        "```\n"
+    )
+
+
+def build_session_router_bootstrap_prompt(
+    *,
+    repo_dir: str | Path = REPO_ROOT,
+    template_path: str | Path = DEFAULT_SESSION_ROUTER_BOOTSTRAP_PROMPT,
+) -> str:
+    payload = {
+        "schema_version": 1,
+        "repository": str(repo_dir),
+        "constraints": {
+            "session_router_must_not_do_worker_work": True,
+            "session_router_output": "one session id line only",
+        },
+    }
+    return (
+        f"{_read_prompt(template_path)}\n\n"
+        "SESSION_ROUTER_BOOTSTRAP_V1_INPUT\n"
         "```json\n"
         f"{json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True)}\n"
         "```\n"
@@ -496,6 +631,17 @@ def _run_resume_session(
     return _call_runner(runner, args, None)
 
 
+def _run_start_session(
+    runner: Any,
+    prompt: str,
+    *,
+    codex_bin: str | Path = DEFAULT_CODEX_BIN,
+) -> CommandResult:
+    if hasattr(runner, "start_session"):
+        return runner.start_session(prompt)
+    return _call_runner(runner, (str(codex_bin), prompt), None)
+
+
 def _run_session_router(
     runner: Any,
     prompt: str,
@@ -517,22 +663,47 @@ def _run_session_router(
     return _call_runner(runner, (str(codex_bin), prompt), None)
 
 
+def bootstrap_session_router(
+    *,
+    assignment_state_path: str | Path = DEFAULT_ASSIGNMENT_STATE_PATH,
+    repo_dir: str | Path = REPO_ROOT,
+    codex_bin: str | Path = DEFAULT_CODEX_BIN,
+    runner: Runner = _default_runner,
+    template_path: str | Path = DEFAULT_SESSION_ROUTER_BOOTSTRAP_PROMPT,
+) -> str:
+    state = _read_assignment_state(assignment_state_path)
+    existing_session_id = state.get("router_session_id")
+    if existing_session_id:
+        return str(existing_session_id)
+
+    prompt = build_session_router_bootstrap_prompt(
+        repo_dir=repo_dir,
+        template_path=template_path,
+    )
+    result = _run_start_session(runner, prompt, codex_bin=codex_bin)
+    if not _result_ok(result):
+        raise DispatchError(
+            _result_text(result, "stderr").strip()
+            or _result_text(result, "stdout").strip()
+            or "failed to start Session_router bootstrap session"
+        )
+    session_id = parse_bootstrap_session_id(result)
+
+    state.setdefault("schema_version", 1)
+    state.setdefault("assignments", [])
+    state.setdefault("next_sub_artifact_number", 1)
+    state["router_session_id"] = session_id
+    _write_assignment_state(assignment_state_path, state)
+    return session_id
+
+
 def update_assignment_state(
     path: str | Path,
     record: QueueRecord,
     *,
     session_id: str,
 ) -> Path:
-    target = Path(path)
-    if target.exists():
-        payload = json.loads(target.read_text(encoding="utf-8"))
-    else:
-        payload = {
-            "schema_version": 1,
-            "router_session_id": None,
-            "next_sub_artifact_number": 1,
-            "assignments": [],
-        }
+    payload = _read_assignment_state(path)
     assignments = payload.setdefault("assignments", [])
     for assignment in assignments:
         if int(assignment.get("issue_number", -1)) != record.issue_number:
@@ -562,6 +733,27 @@ def update_assignment_state(
             int(payload.get("next_sub_artifact_number", 1) or 1),
             int(number_match.group(1)) + 1,
         )
+    return _write_assignment_state(path, payload)
+
+
+def _default_assignment_state() -> Dict[str, object]:
+    return {
+        "schema_version": 1,
+        "router_session_id": None,
+        "next_sub_artifact_number": 1,
+        "assignments": [],
+    }
+
+
+def _read_assignment_state(path: str | Path) -> Dict[str, object]:
+    target = Path(path)
+    if target.exists():
+        return json.loads(target.read_text(encoding="utf-8"))
+    return _default_assignment_state()
+
+
+def _write_assignment_state(path: str | Path, payload: Dict[str, object]) -> Path:
+    target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",

@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
+from urllib.parse import unquote, urlparse
 
 from .models import IssueComment, IssueSnapshot
 
@@ -16,6 +18,10 @@ RunCommand = Callable[[Sequence[str]], Any]
 
 
 class GitHubFetchError(RuntimeError):
+    pass
+
+
+class GitHubRepoInferenceError(RuntimeError):
     pass
 
 
@@ -31,6 +37,64 @@ def validate_repo_name(repo: str) -> str:
     parts = repo.split("/")
     if len(parts) != 2 or not parts[0] or not parts[1]:
         raise ValueError("repo must be OWNER/REPO")
+    return repo
+
+
+def _repo_from_remote_path(path: str) -> Optional[str]:
+    repo_path = unquote(path.strip().strip("/"))
+    if repo_path.endswith(".git"):
+        repo_path = repo_path[:-4]
+    repo_path = repo_path.strip("/")
+    parts = repo_path.split("/")
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        return None
+    try:
+        return validate_repo_name(f"{parts[0]}/{parts[1]}")
+    except ValueError:
+        return None
+
+
+def parse_github_repo_from_remote_url(remote_url: str) -> Optional[str]:
+    value = remote_url.strip()
+    if not value:
+        return None
+
+    parsed = urlparse(value)
+    if parsed.scheme in ("http", "https", "ssh", "git"):
+        if (parsed.hostname or "").lower() != "github.com":
+            return None
+        return _repo_from_remote_path(parsed.path)
+
+    scp_match = re.match(r"^(?:[^@]+@)?github\.com:(.+)$", value)
+    if scp_match:
+        return _repo_from_remote_path(scp_match.group(1))
+    return None
+
+
+def infer_repo_from_origin_remote(
+    repo_dir: str | Path,
+    *,
+    git_bin: str = "git",
+    runner: RunCommand = _default_runner,
+) -> str:
+    result = runner([git_bin, "-C", str(repo_dir), "remote", "get-url", "origin"])
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip()
+        message = (
+            "could not infer GitHub repository because origin remote could not be read; "
+            "pass --repo OWNER/REPO"
+        )
+        if detail:
+            message = f"{message} ({detail})"
+        raise GitHubRepoInferenceError(message)
+
+    repo = parse_github_repo_from_remote_url(result.stdout)
+    if repo is None:
+        raise GitHubRepoInferenceError(
+            "could not infer GitHub repository from origin remote; "
+            "expected a GitHub URL like https://github.com/OWNER/REPO.git "
+            "or git@github.com:OWNER/REPO.git, or pass --repo OWNER/REPO"
+        )
     return repo
 
 

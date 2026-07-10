@@ -15,8 +15,11 @@ if str(LIB_DIR) not in sys.path:
 
 from artifactforge_dispatch_v1.github_client import (  # noqa: E402
     GitHubFetchError,
+    GitHubRepoInferenceError,
     fetch_open_issues,
+    infer_repo_from_origin_remote,
     load_open_issues_snapshot,
+    parse_github_repo_from_remote_url,
     write_open_issues_snapshot,
 )
 
@@ -82,6 +85,61 @@ class FakeGhRunner:
 
 
 class GitHubClientTests(unittest.TestCase):
+    def test_parse_github_repo_from_remote_url_supports_https_and_ssh(self) -> None:
+        cases = {
+            "https://github.com/OWNER/REPO.git": "OWNER/REPO",
+            "https://github.com/OWNER/REPO": "OWNER/REPO",
+            "git@github.com:OWNER/REPO.git": "OWNER/REPO",
+            "git@github.com:OWNER/REPO": "OWNER/REPO",
+            "ssh://git@github.com/OWNER/REPO.git": "OWNER/REPO",
+        }
+
+        for remote_url, expected in cases.items():
+            with self.subTest(remote_url=remote_url):
+                self.assertEqual(expected, parse_github_repo_from_remote_url(remote_url))
+
+    def test_parse_github_repo_from_remote_url_rejects_unknown_shapes(self) -> None:
+        for remote_url in (
+            "",
+            "https://example.com/OWNER/REPO.git",
+            "https://github.com/OWNER/REPO/extra.git",
+            "not-a-github-remote",
+        ):
+            with self.subTest(remote_url=remote_url):
+                self.assertIsNone(parse_github_repo_from_remote_url(remote_url))
+
+    def test_infer_repo_from_origin_remote_uses_git_origin(self) -> None:
+        commands = []
+
+        def runner(command: Sequence[str]) -> subprocess.CompletedProcess[str]:
+            commands.append(list(command))
+            return subprocess.CompletedProcess(
+                list(command),
+                0,
+                stdout="git@github.com:OWNER/REPO.git\n",
+                stderr="",
+            )
+
+        repo = infer_repo_from_origin_remote("/repo/root", runner=runner)
+
+        self.assertEqual("OWNER/REPO", repo)
+        self.assertEqual(
+            ["git", "-C", "/repo/root", "remote", "get-url", "origin"],
+            commands[0],
+        )
+
+    def test_infer_repo_from_origin_remote_has_actionable_error(self) -> None:
+        def runner(command: Sequence[str]) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(
+                list(command),
+                0,
+                stdout="https://example.com/OWNER/REPO.git\n",
+                stderr="",
+            )
+
+        with self.assertRaisesRegex(GitHubRepoInferenceError, "--repo OWNER/REPO"):
+            infer_repo_from_origin_remote("/repo/root", runner=runner)
+
     def test_fetch_open_issues_uses_gh_and_normalizes_comments(self) -> None:
         runner = FakeGhRunner()
 
