@@ -58,6 +58,44 @@ class RunDispatchQueueTest(unittest.TestCase):
         self.assertEqual(1, calls[0][1]["limit"])
         self.assertEqual(0, summary["entry_count"])
 
+    def test_parallel_inflight_and_locks_are_passed_to_dispatch_queue(self) -> None:
+        calls = []
+
+        def fake_dispatch_queue(queue_dir, **kwargs):
+            calls.append((queue_dir, kwargs))
+            return ()
+
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
+            run_dispatch_queue,
+            "dispatch_queue",
+            side_effect=fake_dispatch_queue,
+        ), mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
+            exit_code = run_dispatch_queue.main(
+                [
+                    "--compact",
+                    "--queue-dir",
+                    str(Path(temp_dir) / "queue"),
+                    "--inflight-dir",
+                    str(Path(temp_dir) / "inflight"),
+                    "--pending-dir",
+                    str(Path(temp_dir) / "pending"),
+                    "--archive-dir",
+                    str(Path(temp_dir) / "archive"),
+                    "--locks-dir",
+                    str(Path(temp_dir) / "locks"),
+                    "--parallel",
+                    "4",
+                ]
+            )
+            summary = json.loads(stdout.getvalue())
+
+        self.assertEqual(0, exit_code)
+        self.assertEqual(str(Path(temp_dir) / "inflight"), calls[0][1]["inflight_dir"])
+        self.assertEqual(str(Path(temp_dir) / "locks"), calls[0][1]["locks_dir"])
+        self.assertEqual(4, calls[0][1]["parallel"])
+        self.assertEqual("claimed_before_dispatch", summary["effects"]["inflight_files"])
+        self.assertEqual("router_session_id_serialized", summary["effects"]["session_locks"])
+
 
 if __name__ == "__main__":
     unittest.main()

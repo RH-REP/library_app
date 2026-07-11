@@ -256,7 +256,7 @@ class QueueingTests(unittest.TestCase):
 
         self.assertEqual((), records)
 
-    def test_build_queue_records_routes_worker_router_and_skips_duplicates(self) -> None:
+    def test_build_queue_records_routes_router_and_skips_duplicates(self) -> None:
         issue_one = _issue(1, title="New artifact", body="new body")
         issue_two = _issue(2, title="Existing artifact", body="existing body")
         issue_three = _issue(3, title="Already pending", body="pending body")
@@ -276,9 +276,9 @@ class QueueingTests(unittest.TestCase):
         self.assertEqual("session_router", records[0].prompt_kind)
         self.assertEqual("router", records[0].recipient_role)
         self.assertEqual(ROUTER_SESSION_ID, records[0].target_session_id)
-        self.assertEqual("worker", records[1].prompt_kind)
-        self.assertEqual("worker", records[1].recipient_role)
-        self.assertEqual(WORKER_SESSION_ID, records[1].target_session_id)
+        self.assertEqual("session_router", records[1].prompt_kind)
+        self.assertEqual("router", records[1].recipient_role)
+        self.assertEqual(ROUTER_SESSION_ID, records[1].target_session_id)
         self.assertEqual("sub_artifact/001_existing", records[1].sub_artifact_path)
 
     def test_done_marker_for_thread_update_skips_queue_record(self) -> None:
@@ -300,20 +300,48 @@ class QueueingTests(unittest.TestCase):
 
         self.assertEqual((), records)
 
-    def test_worker_route_does_not_require_router_session_id(self) -> None:
-        assignment_state = _assignment_state()
-        assignment_state["router_session_id"] = ""
-
+    def test_existing_assignment_routes_to_router_session(self) -> None:
         records = build_queue_records(
             (_issue(2, title="Existing artifact", body="existing body"),),
+            _assignment_state(),
+        )
+
+        self.assertEqual(1, len(records))
+        self.assertEqual("session_router", records[0].prompt_kind)
+        self.assertEqual("router", records[0].recipient_role)
+        self.assertEqual(ROUTER_SESSION_ID, records[0].target_session_id)
+        self.assertEqual("sub_artifact/001_existing", records[0].sub_artifact_path)
+
+    def test_assignment_metadata_without_worker_session_is_advisory(self) -> None:
+        assignment_state = _assignment_state()
+        assignment_state["assignments"] = [
+            {
+                "issue_number": 8,
+                "sub_artifact_path": "sub_artifact/008_existing",
+                "status": "active",
+            }
+        ]
+
+        records = build_queue_records(
+            (_issue(8, title="Existing artifact", body="existing body"),),
             assignment_state,
         )
 
         self.assertEqual(1, len(records))
-        self.assertEqual("worker", records[0].prompt_kind)
-        self.assertEqual("worker", records[0].recipient_role)
-        self.assertEqual(WORKER_SESSION_ID, records[0].target_session_id)
-        self.assertEqual("sub_artifact/001_existing", records[0].sub_artifact_path)
+        self.assertEqual("session_router", records[0].prompt_kind)
+        self.assertEqual("router", records[0].recipient_role)
+        self.assertEqual(ROUTER_SESSION_ID, records[0].target_session_id)
+        self.assertEqual("sub_artifact/008_existing", records[0].sub_artifact_path)
+
+    def test_existing_assignment_requires_router_session_id(self) -> None:
+        assignment_state = _assignment_state()
+        assignment_state["router_session_id"] = ""
+
+        with self.assertRaisesRegex(RouterSessionRequired, "router_session_id"):
+            build_queue_records(
+                (_issue(2, title="Existing artifact", body="existing body"),),
+                assignment_state,
+            )
 
     def test_router_route_reports_missing_router_session_id(self) -> None:
         assignment_state = _assignment_state()
@@ -347,6 +375,68 @@ class QueueingTests(unittest.TestCase):
             self.assertTrue(write_results[0].written)
             self.assertTrue(write_results[0].plan.path.exists())
             self.assertIn("queue me", write_results[0].plan.path.read_text(encoding="utf-8"))
+
+    def test_write_queue_files_plans_same_thread_pending_supersede(self) -> None:
+        expanded_issue = _issue(
+            7,
+            body="Initial request",
+            comments=(
+                _comment("C1", "First follow-up"),
+                _comment(
+                    "C2",
+                    "Second follow-up",
+                    created_at="2026-07-10T00:02:00+00:00",
+                ),
+            ),
+        )
+        record = build_queue_records((expanded_issue,), _assignment_state())[0]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            pending_dir = root / "pending"
+            pending_dir.mkdir()
+            same_thread_path = (
+                pending_dir
+                / f"{WORKER_SESSION_ID}_issue-7-thread-body-C1-sha256-old.md"
+            )
+            same_thread_path.write_text(
+                "# ArtifactForge Issue Event\n\n"
+                "## Routing\n"
+                f"- target_session_id: {WORKER_SESSION_ID}\n\n"
+                "## Issue Event\n"
+                "- trigger_fingerprint: issue-7-thread-body-C1-sha256-old\n",
+                encoding="utf-8",
+            )
+            different_first_path = (
+                pending_dir
+                / f"{WORKER_SESSION_ID}_issue-7-thread-C1-C1-sha256-old.md"
+            )
+            different_first_path.write_text(
+                "# ArtifactForge Issue Event\n\n"
+                "## Routing\n"
+                f"- target_session_id: {WORKER_SESSION_ID}\n\n"
+                "## Issue Event\n"
+                "- trigger_fingerprint: issue-7-thread-C1-C1-sha256-old\n",
+                encoding="utf-8",
+            )
+
+            results = write_queue_files(
+                (record,),
+                queue_dir=root / "queue",
+                pending_dir=pending_dir,
+                dry_run=True,
+            )
+
+        self.assertEqual(1, len(results[0].superseded_pending))
+        self.assertEqual(same_thread_path, results[0].superseded_pending[0].path)
+        self.assertEqual(
+            record.trigger_fingerprint,
+            results[0].superseded_pending[0].replacement_trigger_fingerprint,
+        )
+        self.assertNotEqual(
+            different_first_path,
+            results[0].superseded_pending[0].path,
+        )
 
     def test_reassign_required_pending_routes_back_to_router(self) -> None:
         body = "This should move to another worker"

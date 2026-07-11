@@ -32,6 +32,10 @@ FINGERPRINT_IN_TEXT_RE = re.compile(
     r"^\s*-?\s*trigger_fingerprint:\s*`?([^`\s]+)`?\s*$",
     re.MULTILINE,
 )
+THREAD_FINGERPRINT_RE = re.compile(
+    r"^issue-(?P<issue_number>\d+)-thread-"
+    r"(?P<first_source_id>[^-]+)-(?P<last_source_id>[^-]+)-sha256-(?P<digest>.+)$"
+)
 
 
 @dataclass(frozen=True)
@@ -44,9 +48,34 @@ class QueueFilePlan:
 
 
 @dataclass(frozen=True)
+class ThreadFingerprintMetadata:
+    issue_number: int
+    first_source_id: str
+    last_source_id: str
+
+
+@dataclass(frozen=True)
+class PendingSupersedePlan:
+    path: Path
+    trigger_fingerprint: str
+    replacement_trigger_fingerprint: str
+    issue_number: int
+    first_source_id: str
+    queue_path: Path
+
+
+@dataclass(frozen=True)
 class QueueFileResult:
     plan: QueueFilePlan
     written: bool
+    reason: str | None = None
+    superseded_pending: tuple[PendingSupersedePlan, ...] = ()
+
+
+@dataclass(frozen=True)
+class PendingSupersedeResult:
+    plan: PendingSupersedePlan
+    deleted: bool
     reason: str | None = None
 
 
@@ -86,6 +115,19 @@ def thread_update_fingerprint(
         f"issue-{issue_number}-thread-"
         f"{safe_filename_part(first_source_id)}-"
         f"{safe_filename_part(last_source_id)}-sha256-{sha256_text(body)}"
+    )
+
+
+def parse_thread_fingerprint_metadata(
+    trigger_fingerprint: str,
+) -> ThreadFingerprintMetadata | None:
+    match = THREAD_FINGERPRINT_RE.match(trigger_fingerprint)
+    if match is None:
+        return None
+    return ThreadFingerprintMetadata(
+        issue_number=int(match.group("issue_number")),
+        first_source_id=match.group("first_source_id"),
+        last_source_id=match.group("last_source_id"),
     )
 
 
@@ -339,23 +381,17 @@ def build_queue_records(
             continue
 
         assignment = active_assignment_for_issue(assignment_state, event.issue_number)
-        if reassign_required or assignment is None:
-            target_session_id = _router_session_id(assignment_state)
-            prompt_kind = "session_router"
-            sub_artifact_path = (
-                _optional_str(assignment.get("sub_artifact_path"))
-                if assignment is not None
-                else planned_sub_artifacts.get(event.issue_number)
-            )
-            if sub_artifact_path is None:
-                sub_artifact_path = planned_sub_artifact_path(event, next_number)
-                planned_sub_artifacts[event.issue_number] = sub_artifact_path
-                next_number += 1
-        else:
-            target_session_id = str(assignment["session_id"])
-            prompt_kind = "worker"
-            previous_thread_id = None
-            sub_artifact_path = _optional_str(assignment.get("sub_artifact_path"))
+        target_session_id = _router_session_id(assignment_state)
+        prompt_kind = "session_router"
+        sub_artifact_path = (
+            _optional_str(assignment.get("sub_artifact_path"))
+            if assignment is not None
+            else planned_sub_artifacts.get(event.issue_number)
+        )
+        if sub_artifact_path is None:
+            sub_artifact_path = planned_sub_artifact_path(event, next_number)
+            planned_sub_artifacts[event.issue_number] = sub_artifact_path
+            next_number += 1
 
         records.append(
             QueueRecord(
@@ -388,8 +424,6 @@ def active_assignment_for_issue(
         if assigned_issue_number != issue_number:
             continue
         if str(assignment.get("status", "active")) != "active":
-            continue
-        if not str(assignment.get("session_id", "")).strip():
             continue
         return assignment
     return None
@@ -505,6 +539,7 @@ def write_queue_files(
     records: Iterable[QueueRecord],
     *,
     queue_dir: str | Path,
+    pending_dir: str | Path | None = None,
     dry_run: bool = False,
     overwrite: bool = False,
 ) -> tuple[QueueFileResult, ...]:
@@ -516,6 +551,10 @@ def write_queue_files(
                 plan=plan,
                 written=False,
                 reason=plan.reason or "dry_run",
+                superseded_pending=_superseded_pending_for_plan(
+                    plan,
+                    pending_dir=pending_dir,
+                ),
             )
             for plan in plans
         )
@@ -528,8 +567,65 @@ def write_queue_files(
             continue
         plan.path.parent.mkdir(parents=True, exist_ok=True)
         plan.path.write_text(plan.content, encoding="utf-8")
-        results.append(QueueFileResult(plan=plan, written=True))
+        results.append(
+            QueueFileResult(
+                plan=plan,
+                written=True,
+                superseded_pending=_superseded_pending_for_plan(
+                    plan,
+                    pending_dir=pending_dir,
+                ),
+            )
+        )
     return tuple(results)
+
+
+def delete_superseded_pending_files(
+    results: Iterable[QueueFileResult],
+    *,
+    dry_run: bool = False,
+) -> tuple[PendingSupersedeResult, ...]:
+    supersede_results: list[PendingSupersedeResult] = []
+    seen_paths: set[Path] = set()
+    for result in results:
+        for supersede_plan in result.superseded_pending:
+            path = supersede_plan.path
+            if path in seen_paths:
+                continue
+            seen_paths.add(path)
+            if dry_run:
+                supersede_results.append(
+                    PendingSupersedeResult(
+                        plan=supersede_plan,
+                        deleted=False,
+                        reason="dry_run",
+                    )
+                )
+                continue
+            if not result.written:
+                supersede_results.append(
+                    PendingSupersedeResult(
+                        plan=supersede_plan,
+                        deleted=False,
+                        reason="queue_not_written",
+                    )
+                )
+                continue
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                supersede_results.append(
+                    PendingSupersedeResult(
+                        plan=supersede_plan,
+                        deleted=False,
+                        reason="missing",
+                    )
+                )
+            else:
+                supersede_results.append(
+                    PendingSupersedeResult(plan=supersede_plan, deleted=True)
+                )
+    return tuple(supersede_results)
 
 
 def collect_existing_fingerprints(path: str | Path | None) -> frozenset[str]:
@@ -623,6 +719,49 @@ def _reassign_handoff_pending_exists(
     if not previous_thread_id:
         return True
     return any(session_id != previous_thread_id for session_id in sessions)
+
+
+def _superseded_pending_for_plan(
+    plan: QueueFilePlan,
+    *,
+    pending_dir: str | Path | None,
+) -> tuple[PendingSupersedePlan, ...]:
+    if pending_dir is None or plan.action != "create" or plan.record.reassign_required:
+        return ()
+
+    replacement = parse_thread_fingerprint_metadata(
+        plan.record.trigger_fingerprint
+    )
+    if replacement is None:
+        return ()
+
+    superseded: list[PendingSupersedePlan] = []
+    replacement_fingerprint = plan.record.trigger_fingerprint
+    replacement_safe = safe_filename_part(replacement_fingerprint)
+    for pending in iter_pending_records(pending_dir):
+        pending_fingerprint = pending.trigger_fingerprint
+        if pending_fingerprint == replacement_fingerprint:
+            continue
+        if safe_filename_part(pending_fingerprint) == replacement_safe:
+            continue
+        pending_metadata = parse_thread_fingerprint_metadata(pending_fingerprint)
+        if pending_metadata is None:
+            continue
+        if pending_metadata.issue_number != replacement.issue_number:
+            continue
+        if pending_metadata.first_source_id != replacement.first_source_id:
+            continue
+        superseded.append(
+            PendingSupersedePlan(
+                path=Path(pending.path),
+                trigger_fingerprint=pending_fingerprint,
+                replacement_trigger_fingerprint=replacement_fingerprint,
+                issue_number=replacement.issue_number,
+                first_source_id=replacement.first_source_id,
+                queue_path=plan.path,
+            )
+        )
+    return tuple(superseded)
 
 
 def _fingerprints_from_file(path: Path) -> set[str]:

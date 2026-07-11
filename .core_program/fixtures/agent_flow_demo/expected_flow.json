@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "fixture": "agent_flow_demo",
+  "queue_file": "queue/router_demo.md",
+  "expected_record": {
+    "recipient_role": "router",
+    "target_session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "issue_number": 1,
+    "event_type": "thread_update",
+    "thread_update_source_id": "body..comment-demo",
+    "trigger_fingerprint": "issue-1-thread-body-comment-demo-sha256-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  },
+  "checklist": [
+    {
+      "step": "router_receives_queue_record",
+      "expectation": "Dispatch targets the visible router session because recipient_role is router."
+    },
+    {
+      "step": "router_hands_off_once",
+      "expectation": "Router chooses or creates one worker session and sends the worker-mode dispatch prompt once."
+    },
+    {
+      "step": "worker_may_delegate_bounded_task",
+      "expectation": "Worker may use a subagent to create the tiny demo software under the temporary demo work directory."
+    },
+    {
+      "step": "permission_request_returns_to_router",
+      "expectation": "If a worker or subagent needs login, approval, permission, or a TTY, it asks through the router rather than asking the user to open a subagent session."
+    },
+    {
+      "step": "worker_posts_terminal_marker",
+      "expectation": "The worker's final issue comment includes a codex-agent-v1 marker for the trigger fingerprint with status done, reassign_required, or authentication_blocked."
+    }
+  ],
+  "example_terminal_marker": "<!-- codex-agent-v1: {\"thread_id\":\"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\"trigger_fingerprint\":\"issue-1-thread-body-comment-demo-sha256-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"status\":\"done\"} -->"
+}

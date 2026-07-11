@@ -1,0 +1,14 @@
+{
+  "issues": [
+    {
+      "number": 9001,
+      "state": "OPEN",
+      "title": "Real Codex permission routing demo",
+      "url": "https://example.invalid/artifactforge/issues/9001",
+      "body": "This is a local-only real Codex permission routing demo. Do not call GitHub. Do not post a real issue comment. Do not commit or push. Route this through Session_router to worker_A. worker_A should split the work into subagent_A1 for implementation and subagent_A2 for verification. subagent_A1 must request permission through Session_router before writing a local demo file. If permission is granted through Session_router, write `.core_program/dry_run_output/real_codex_permission_worker/permission_granted.txt` with one line: `permission granted through Session_router`. subagent_A2 should verify that file. worker_A should report the planned human-visible comment text in the session, including a codex-agent-v1 marker for this trigger fingerprint, but must not post it to GitHub.",
+      "created_at": "2026-07-11T00:00:00+00:00",
+      "updated_at": "2026-07-11T00:00:00+00:00",
+      "comments": []
+    }
+  ]
+}

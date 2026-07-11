@@ -174,7 +174,7 @@ def _write_pending_event(path: Path, fingerprint: str) -> None:
 
 
 class RunIssueQueueTests(unittest.TestCase):
-    def test_missing_router_id_worker_only_dry_run_does_not_plan_bootstrap(self) -> None:
+    def test_missing_router_id_existing_assignment_dry_run_plans_bootstrap(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             assignment_state = root / "assignment_state.json"
@@ -211,12 +211,12 @@ class RunIssueQueueTests(unittest.TestCase):
 
         self.assertEqual(0, exit_code)
         bootstrap_session_router.assert_not_called()
-        self.assertEqual("not_started", summary["effects"]["codex_sessions"])
+        self.assertEqual("router_bootstrap_planned", summary["effects"]["codex_sessions"])
         self.assertEqual(1, len(summary["queue"]["items"]))
-        self.assertEqual("worker", summary["queue"]["items"][0]["prompt_kind"])
-        self.assertEqual("worker", summary["queue"]["items"][0]["recipient_role"])
+        self.assertEqual("session_router", summary["queue"]["items"][0]["prompt_kind"])
+        self.assertEqual("router", summary["queue"]["items"][0]["recipient_role"])
         self.assertEqual(
-            WORKER_SESSION_ID,
+            run_issue_queue.PLANNED_ROUTER_SESSION_ID,
             summary["queue"]["items"][0]["target_session_id"],
         )
 
@@ -515,6 +515,146 @@ class RunIssueQueueTests(unittest.TestCase):
         self.assertEqual("thread_update", item["event_type"])
         self.assertEqual("body..C12B", item["source_id"])
         self.assertTrue(item["trigger_fingerprint"].startswith("issue-12-thread-body-C12B-"))
+
+    def test_dry_run_summary_reports_superseded_pending_without_deleting(self) -> None:
+        old_fingerprint = "issue-12-thread-body-C12A-sha256-old"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            assignment_state = root / "assignment_state.json"
+            issues = root / "issues.json"
+            pending_dir = root / "pending"
+            pending_path = pending_dir / f"{WORKER_SESSION_ID}_{old_fingerprint}.md"
+            _write_assignment_state(assignment_state)
+            _write_thread_update_issue_snapshots(issues)
+            _write_pending_event(pending_path, old_fingerprint)
+
+            with mock.patch.object(
+                run_issue_queue,
+                "bootstrap_session_router",
+            ) as bootstrap_session_router, mock.patch(
+                "sys.stdout",
+                new_callable=io.StringIO,
+            ) as stdout:
+                exit_code = run_issue_queue.main(
+                    _dry_run_args(root, assignment_state, issues) + ["--compact"]
+                )
+                summary = json.loads(stdout.getvalue())
+                pending_exists_after = pending_path.exists()
+
+        self.assertEqual(0, exit_code)
+        bootstrap_session_router.assert_not_called()
+        self.assertTrue(pending_exists_after)
+        self.assertEqual(1, summary["superseded_pending"]["planned_count"])
+        self.assertEqual(0, summary["superseded_pending"]["deleted_count"])
+        superseded_item = summary["superseded_pending"]["items"][0]
+        self.assertEqual(str(pending_path), superseded_item["path"])
+        self.assertEqual(old_fingerprint, superseded_item["trigger_fingerprint"])
+        self.assertEqual("planned", superseded_item["status"])
+        self.assertTrue(
+            superseded_item["replacement_trigger_fingerprint"].startswith(
+                "issue-12-thread-body-C12B-"
+            )
+        )
+        self.assertEqual(
+            [old_fingerprint],
+            [
+                item["trigger_fingerprint"]
+                for item in summary["queue"]["items"][0]["superseded_pending"]
+            ],
+        )
+
+    def test_real_run_deletes_superseded_pending_only_after_queue_write(self) -> None:
+        old_fingerprint = "issue-12-thread-body-C12A-sha256-old"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            assignment_state = root / "assignment_state.json"
+            issues = root / "issues.json"
+            pending_dir = root / "pending"
+            queue_dir = root / "queue"
+            pending_path = pending_dir / f"{WORKER_SESSION_ID}_{old_fingerprint}.md"
+            _write_assignment_state(assignment_state)
+            _write_thread_update_issue_snapshots(issues)
+            _write_pending_event(pending_path, old_fingerprint)
+            current_event = run_issue_queue.collect_issue_events(
+                run_issue_queue.read_issue_snapshots(issues)
+            )[0]
+            existing_queue_path = (
+                queue_dir
+                / f"{ROUTER_SESSION_ID}_"
+                f"{run_issue_queue.safe_filename_part(current_event.trigger_fingerprint)}.md"
+            )
+            existing_queue_path.parent.mkdir(parents=True)
+            existing_queue_path.write_text("already queued", encoding="utf-8")
+
+            with mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
+                exit_code = run_issue_queue.main(
+                    [
+                        "--repo",
+                        "OWNER/REPO",
+                        "--issues",
+                        str(issues),
+                        "--compact",
+                        "--assignment-state",
+                        str(assignment_state),
+                        "--queue-dir",
+                        str(queue_dir),
+                        "--pending-dir",
+                        str(pending_dir),
+                        "--archive-dir",
+                        str(root / "archive"),
+                    ]
+                )
+                skipped_summary = json.loads(stdout.getvalue())
+                pending_exists_after_skip = pending_path.exists()
+
+        self.assertEqual(0, exit_code)
+        self.assertTrue(pending_exists_after_skip)
+        self.assertEqual(0, skipped_summary["queue"]["written_count"])
+        self.assertEqual("skip", skipped_summary["queue"]["items"][0]["action"])
+        self.assertEqual(0, skipped_summary["superseded_pending"]["planned_count"])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            assignment_state = root / "assignment_state.json"
+            issues = root / "issues.json"
+            pending_dir = root / "pending"
+            queue_dir = root / "queue"
+            pending_path = pending_dir / f"{WORKER_SESSION_ID}_{old_fingerprint}.md"
+            _write_assignment_state(assignment_state)
+            _write_thread_update_issue_snapshots(issues)
+            _write_pending_event(pending_path, old_fingerprint)
+
+            with mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
+                exit_code = run_issue_queue.main(
+                    [
+                        "--repo",
+                        "OWNER/REPO",
+                        "--issues",
+                        str(issues),
+                        "--compact",
+                        "--assignment-state",
+                        str(assignment_state),
+                        "--queue-dir",
+                        str(queue_dir),
+                        "--pending-dir",
+                        str(pending_dir),
+                        "--archive-dir",
+                        str(root / "archive"),
+                    ]
+                )
+                written_summary = json.loads(stdout.getvalue())
+                pending_exists_after_write = pending_path.exists()
+
+        self.assertEqual(0, exit_code)
+        self.assertFalse(pending_exists_after_write)
+        self.assertEqual(1, written_summary["queue"]["written_count"])
+        self.assertEqual(1, written_summary["superseded_pending"]["planned_count"])
+        self.assertEqual(1, written_summary["superseded_pending"]["deleted_count"])
+        self.assertEqual(
+            "deleted",
+            written_summary["superseded_pending"]["items"][0]["status"],
+        )
 
     def test_missing_router_id_real_run_bootstraps_and_uses_new_router_id(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

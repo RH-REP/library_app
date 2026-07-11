@@ -40,6 +40,7 @@ from artifactforge_dispatch_v1.queueing import (  # noqa: E402
     collect_agent_markers,
     collect_existing_fingerprints,
     collect_issue_events,
+    delete_superseded_pending_files,
     latest_marker_by_fingerprint,
     safe_filename_part,
     write_queue_files,
@@ -242,9 +243,7 @@ def router_bootstrap_required(
         if marker is not None and marker.status in PENDING_HOLD_STATUSES:
             continue
 
-        assignment = active_assignment_for_issue(assignment_state, event.issue_number)
-        if reassign_required or assignment is None:
-            return True
+        return True
     return False
 
 
@@ -286,6 +285,50 @@ def queue_results_to_dict(results: Iterable[Any]) -> dict[str, object]:
                 "trigger_fingerprint": result.plan.record.trigger_fingerprint,
                 "sub_artifact_path": result.plan.record.sub_artifact_path,
                 "reassign_required": result.plan.record.reassign_required,
+                "superseded_pending": [
+                    {
+                        "path": str(supersede.path),
+                        "trigger_fingerprint": supersede.trigger_fingerprint,
+                        "replacement_trigger_fingerprint": (
+                            supersede.replacement_trigger_fingerprint
+                        ),
+                        "issue_number": supersede.issue_number,
+                        "first_source_id": supersede.first_source_id,
+                        "queue_path": str(supersede.queue_path),
+                    }
+                    for supersede in result.superseded_pending
+                ],
+            }
+            for result in result_tuple
+        ],
+    }
+
+
+def superseded_pending_results_to_dict(results: Iterable[Any]) -> dict[str, object]:
+    result_tuple = tuple(results)
+    return {
+        "planned_count": len(result_tuple),
+        "deleted_count": sum(1 for result in result_tuple if result.deleted),
+        "items": [
+            {
+                "path": str(result.plan.path),
+                "trigger_fingerprint": result.plan.trigger_fingerprint,
+                "replacement_trigger_fingerprint": (
+                    result.plan.replacement_trigger_fingerprint
+                ),
+                "issue_number": result.plan.issue_number,
+                "first_source_id": result.plan.first_source_id,
+                "queue_path": str(result.plan.queue_path),
+                "deleted": result.deleted,
+                "reason": result.reason,
+                "status": (
+                    "deleted"
+                    if result.deleted
+                    else "planned"
+                    if result.reason == "dry_run"
+                    else result.reason
+                    or "not_deleted"
+                ),
             }
             for result in result_tuple
         ],
@@ -375,6 +418,14 @@ def _pending_requeue_command(item: dict[str, object], *, queue_dir: str | Path) 
     return f"mv {shlex.quote(source)} {shlex.quote(str(destination))}"
 
 
+def _superseded_item_line(item: dict[str, object]) -> str:
+    old_fingerprint = _short(item.get("trigger_fingerprint") or "")
+    new_fingerprint = _short(item.get("replacement_trigger_fingerprint") or "")
+    status = str(item.get("status") or "").strip()
+    detail = f" [{status}]" if status else ""
+    return f"{old_fingerprint} -> {new_fingerprint}{detail}"
+
+
 def _numbered_block(title: str, lines: Iterable[str], *, limit: int = 5) -> list[str]:
     line_tuple = tuple(line for line in lines if line)
     rendered = [f"{title} ({len(line_tuple)})", _divider()]
@@ -413,6 +464,17 @@ def human_summary(
     ]
     queue_items = queue.get("items") if isinstance(queue.get("items"), list) else []
     pending_items = archive.get("items") if isinstance(archive.get("items"), list) else []
+    superseded_pending = (
+        summary.get("superseded_pending")
+        if isinstance(summary.get("superseded_pending"), dict)
+        else {}
+    )
+    assert isinstance(superseded_pending, dict)
+    superseded_items = (
+        superseded_pending.get("items")
+        if isinstance(superseded_pending.get("items"), list)
+        else []
+    )
     archived_lines = [
         _pending_item_line(item)
         for item in pending_items
@@ -451,6 +513,17 @@ def human_summary(
     if requeue_commands:
         lines.append("")
         lines.extend(_numbered_block("pending -> queue commands", requeue_commands))
+    lines.append("")
+    lines.extend(
+        _numbered_block(
+            "superseded pending",
+            (
+                _superseded_item_line(item)
+                for item in superseded_items
+                if isinstance(item, dict)
+            ),
+        )
+    )
     lines.append("")
     lines.extend(_numbered_block("archived", archived_lines))
     return "\n".join(lines)
@@ -542,8 +615,13 @@ def main(argv: list[str] | None = None) -> int:
     queue_results = write_queue_files(
         records,
         queue_dir=args.queue_dir,
+        pending_dir=args.pending_dir,
         dry_run=args.dry_run,
         overwrite=args.overwrite,
+    )
+    superseded_pending_results = delete_superseded_pending_files(
+        queue_results,
+        dry_run=args.dry_run,
     )
     summary = {
         "schema_version": 1,
@@ -556,6 +634,9 @@ def main(argv: list[str] | None = None) -> int:
         "archive": lifecycle_summary_to_dict(lifecycle),
         "pending_issue_check": pending_issue_check,
         "queue": queue_results_to_dict(queue_results),
+        "superseded_pending": superseded_pending_results_to_dict(
+            superseded_pending_results
+        ),
         "effects": {
             "github_fetch": "called" if issue_source == "github" else "not_called",
             "snapshot_file": "written" if snapshot_written else "not_written",

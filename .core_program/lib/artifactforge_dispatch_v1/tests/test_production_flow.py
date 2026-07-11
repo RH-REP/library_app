@@ -103,7 +103,7 @@ class ProductionFlowTest(unittest.TestCase):
             )
 
             self.assertTrue(dispatch.ok)
-            self.assertEqual(["resume"], [call[0] for call in runner.calls])
+            self.assertEqual(["router"], [call[0] for call in runner.calls])
             self.assertEqual(ROUTER_SESSION_ID, runner.calls[0][1])
             self.assertIn("- recipient_role: router", runner.calls[0][2])
             self.assertFalse(queue_path.exists())
