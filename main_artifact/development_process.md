@@ -14,6 +14,8 @@
 4. software 側で汎用機能として実装する。
 5. private project repo へ取り込み、実データで確認する。
 
+private な開発段階では、プログラミング技術図書館の個別データを commit して保存してよい。ただし、その commit history をそのまま公開リポジトリとして配布してはいけない。配布は、個別データを除外した `git archive` か、個別データを一度も含まない clean branch / clean repository から行う。
+
 ## 工程1: 目標整理と原案化
 
 初回 issue の内容から、制作目標、成功条件、作る範囲、作らない範囲、未確定事項を整理する。あわせて、最初の作業単位として `sub_artifact/001_artifact/` を初期化する。

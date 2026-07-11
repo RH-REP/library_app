@@ -1,0 +1,6 @@
+# Private project data may be committed while this repository stays private.
+# These paths must be omitted from source archives made with `git archive`.
+private_data/** export-ignore
+local_private_data/** export-ignore
+private_config/** export-ignore
+*.private.* export-ignore

@@ -34,3 +34,27 @@
 - `.gitignore` と設定ファイルの具体案を決める。
 - 最小 demo fixture を作る。
 - data contract を文書化する。
+
+## Follow-up: プログラミング技術図書館と配布時の個別データ除外
+
+追加コメントで、当面のテーマを「プログラミングの技術」に関する図書館にし、現時点では個別データも commit して保存するが、配布できる状態になったときには個別データが抜けるようにしたい、という相談があった。
+
+判断:
+
+- 可能。
+- ただし、個別データを含む private repository の Git history をそのまま公開してはいけない。
+- ファイルを後で削除しても、過去の commit history から復元できるため。
+- 配布は、private path を除外した release archive か、個別データを一度も含まない clean branch / clean repository で行う。
+
+対応:
+
+- `main_artifact/goal.md` に、当面のテーマと配布時の個別データ除外条件を追記した。
+- `main_artifact/development_process.md` に、private commit と clean distribution の境界を追記した。
+- `sub_artifact/003_software_data_boundary/artifact.md` に、private data commit を許容する条件と配布方法を追記した。
+- `.gitattributes` を追加し、`private_data/**` などを `git archive` から除外する設定を入れた。
+
+残課題:
+
+- `private_data/programming_tech_library/` の具体的なディレクトリ構造を決める。
+- `fixtures/demo_programming_tech_library/` の最小サンプルを作る。
+- release archive 作成手順と private data 混入チェック手順を作る。
