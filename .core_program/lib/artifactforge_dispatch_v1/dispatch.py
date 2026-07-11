@@ -615,7 +615,8 @@ def _router_orchestration_instructions(
             "- Route login, approval, permission, TTY, and other interactive needs through this visible router session.",
             "- You may grant or broker permissions/capabilities this Session_router already has to subagents when the pending task needs them and the action stays within this repository/project scope.",
             "- Ask the user through this Session_router before obtaining any new permission or broader capability.",
-            "- Worker and subagent sessions may be non-visible.",
+            "- Worker and subagent sessions are non-visible by default.",
+            "- Use a visible child session only when non-visible execution is unsuitable, debug observation is necessary, or the user explicitly asks for visibility; record the reason when this happens.",
             "- Preserve `.core_program/assignment_state.json` as the issue/session/sub-artifact routing state.",
             "- If `reassign_required` is true, avoid `previous_thread_id` when choosing a worker.",
             "- If you discover an ArtifactForge contract violation, post a concise bug report yourself as a GitHub issue comment on the relevant issue.",
@@ -670,6 +671,9 @@ def build_dispatch_prompt(
             "user_interface_role": "router",
             "router_is_only_human_permission_surface": True,
             "subagents_may_be_non_visible": True,
+            "worker_sessions_default_visibility": "non_visible",
+            "subagent_sessions_default_visibility": "non_visible",
+            "visible_child_session_requires_reason": True,
             "permission_requests_must_go_through_router": True,
             "router_existing_capabilities_may_be_granted_to_subagents": True,
             "new_or_broader_capabilities_require_user_approval": True,
@@ -729,6 +733,9 @@ def build_dispatch_prompt(
             ],
             "workers_may_be_non_visible": True,
             "subagents_may_be_non_visible": True,
+            "worker_sessions_default_visibility": "non_visible",
+            "subagent_sessions_default_visibility": "non_visible",
+            "visible_child_session_requires_reason": True,
         }
         payload["pending_contract"] = {
             "pending_dir": ".core_program/pending",
@@ -813,7 +820,8 @@ def build_dispatch_prompt(
             f"- recipient_role: {record.recipient_role}\n"
             f"- target_session_id: {record.target_session_id}\n\n"
             "If your current session ID is not target_session_id, do not perform the work.\n"
-            "The user's human-facing interface is the Session_router; subagents may be non-visible.\n"
+            "The user's human-facing interface is the Session_router; child sessions default to non-visible.\n"
+            "Worker and subagent sessions default to non-visible; visible child sessions require a recorded reason.\n"
             "Any login, approval, permission, or TTY requirement must be routed through the Session_router.\n"
             "If recipient_role is worker, process the issue thread update as the assigned worker.\n"
             "If recipient_role is router, read `.core_program/pending` and dispatch/delegate from there; "
@@ -1773,6 +1781,9 @@ def build_session_router_batch_prompt(
             "contract_violation_bug_report_default_status": "authentication_blocked",
             "contract_violation_bug_report_wrong_session_status": "reassign_required",
             "workers_and_subagents_may_be_non_visible": True,
+            "worker_sessions_default_visibility": "non_visible",
+            "subagent_sessions_default_visibility": "non_visible",
+            "visible_child_session_requires_reason": True,
             "do_not_send_concurrent_prompts_to_same_child_session": True,
             "dispatch_minimal_feature_units_with_implementation_and_verification_pairs": True,
             "default_child_model": "GPT-5.4-high",

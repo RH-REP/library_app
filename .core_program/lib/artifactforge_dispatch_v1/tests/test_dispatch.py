@@ -212,6 +212,9 @@ class DispatchTest(unittest.TestCase):
             self.assertIn('"target_session_visibility": "non_visible"', worker_prompt)
             self.assertIn('"human_gateway_contract"', worker_prompt)
             self.assertIn('"router_is_only_human_permission_surface": true', worker_prompt)
+            self.assertIn('"worker_sessions_default_visibility": "non_visible"', worker_prompt)
+            self.assertIn('"subagent_sessions_default_visibility": "non_visible"', worker_prompt)
+            self.assertIn('"visible_child_session_requires_reason": true', worker_prompt)
             self.assertIn('"permission_requests_must_go_through_router": true', worker_prompt)
             self.assertIn(
                 '"router_existing_capabilities_may_be_granted_to_subagents": true',
@@ -260,6 +263,9 @@ class DispatchTest(unittest.TestCase):
             )
             self.assertIn('"workers_may_be_non_visible": true', router_prompt)
             self.assertIn('"subagents_may_be_non_visible": true', router_prompt)
+            self.assertIn('"worker_sessions_default_visibility": "non_visible"', router_prompt)
+            self.assertIn('"subagent_sessions_default_visibility": "non_visible"', router_prompt)
+            self.assertIn('"visible_child_session_requires_reason": true', router_prompt)
             self.assertIn(
                 '"router_may_grant_existing_capabilities_to_subagents": true',
                 router_prompt,
