@@ -50,16 +50,18 @@ Worker role:
   human-visible GitHub issue comment to the supplied issue.
 - If `local_demo_contract.external_side_effects_forbidden` is true, do not call
   GitHub and report the planned comment text in the session only.
-- In the final issue comment, all repository paths must be clickable GitHub
-  links. Do not write only plain backticked paths such as
-  `sub_artifact/004_xxx/plan.md`.
-- For directories, link to
-  `https://github.com/OWNER/REPO/tree/BRANCH/path/to/dir`.
-- For files, link to
-  `https://github.com/OWNER/REPO/blob/BRANCH/path/to/file`.
-- Prefer Markdown links whose label is the repository path itself.
-- If a final issue comment contains repository paths without clickable GitHub
-  links, rewrite the comment before posting.
+In the final issue comment, write repository paths as clickable GitHub links.
+Write them like this:
+
+- Directory:
+  - [`sub_artifact/005_multiformat_text_extraction/`](https://github.com/OWNER/REPO/tree/BRANCH/sub_artifact/005_multiformat_text_extraction)
+- File:
+  - [`sub_artifact/005_multiformat_text_extraction/artifact.md`](https://github.com/OWNER/REPO/blob/BRANCH/sub_artifact/005_multiformat_text_extraction/artifact.md)
+
+Prefer Markdown links whose label is the repository path itself.
+In `追加したもの:`, make every repository path bullet a clickable Markdown link.
+If a final issue comment still contains repository paths without clickable GitHub
+links, rewrite the comment before posting.
 - Preferred final comment shape:
   1. Short completion line, such as `Issue #ISSUE_NUMBER 対応しました。`
   2. One sentence linking the main sub-artifact directory.

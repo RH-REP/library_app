@@ -63,16 +63,18 @@ Finalization rules:
 - The posted comment must summarize the completed work, verification, and
   commit/push status, then end with the required `codex-agent-v1` marker
   footer.
-- Use clickable GitHub links for repository paths in the final issue comment.
-  Do not write only plain backticked paths such as
-  `sub_artifact/004_xxx/plan.md`.
-- For directories, link to
-  `https://github.com/OWNER/REPO/tree/BRANCH/path/to/dir`.
-- For files, link to
-  `https://github.com/OWNER/REPO/blob/BRANCH/path/to/file`.
-- Prefer Markdown links whose label is the repository path itself.
-- If a final issue comment contains repository paths without clickable GitHub
-  links, rewrite the comment before posting.
+Use clickable GitHub links for repository paths in the final issue comment.
+Write them like this:
+
+- Directory:
+  - [`sub_artifact/005_multiformat_text_extraction/`](https://github.com/OWNER/REPO/tree/BRANCH/sub_artifact/005_multiformat_text_extraction)
+- File:
+  - [`sub_artifact/005_multiformat_text_extraction/artifact.md`](https://github.com/OWNER/REPO/blob/BRANCH/sub_artifact/005_multiformat_text_extraction/artifact.md)
+
+Prefer Markdown links whose label is the repository path itself.
+In `追加したもの:`, make every repository path bullet a clickable Markdown link.
+If the final issue comment still contains repository paths without clickable GitHub
+links, rewrite the comment before posting.
 - Preferred final comment shape:
   1. Short completion line, such as `Issue #ISSUE_NUMBER 対応しました。`
   2. One sentence linking the main sub-artifact directory.

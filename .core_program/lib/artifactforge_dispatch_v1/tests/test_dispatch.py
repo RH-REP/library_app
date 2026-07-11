@@ -267,6 +267,11 @@ class DispatchTest(unittest.TestCase):
                 '"file_link_template": "https://github.com/OWNER/REPO/blob/BRANCH/path/to/file"',
                 worker_prompt,
             )
+            self.assertIn("Write them like this:", worker_prompt)
+            self.assertIn(
+                "[`sub_artifact/005_multiformat_text_extraction/`](https://github.com/OWNER/REPO/tree/BRANCH/sub_artifact/005_multiformat_text_extraction)",
+                worker_prompt,
+            )
             self.assertIn(
                 '"rewrite_comment_before_posting_if_paths_are_not_clickable": true',
                 worker_prompt,
