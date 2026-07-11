@@ -63,15 +63,14 @@ Finalization rules:
 - The posted comment must summarize the completed work, verification, and
   commit/push status, then end with the required `codex-agent-v1` marker
   footer.
-- After the final GitHub issue comment with the required `codex-agent-v1` marker
-  has been posted, move the exact supplied pending file from
-  `.core_program/pending/` to `.core_program/archive/` with the same filename.
-  Example: `mv .core_program/pending/xxx.md .core_program/archive/xxx.md`.
-- Then update `.core_program/pending_state.json` to `archived` with the archive
-  path.
-- Do not move a pending file to archive before the final comment and marker are
-  posted. If work is blocked, waiting for human input, or still in progress,
-  leave the file in `.core_program/pending/`.
+- Do not move pending files to archive. After posting the final GitHub issue
+  comment with the required `codex-agent-v1` marker, leave the exact supplied
+  pending file in `.core_program/pending/`; Python fetch/reconcile archives it
+  after confirming the exact pending `trigger_fingerprint` marker on GitHub.
+- Do not reset `dispatched`, `blocked`, `human_waiting`, `deferred`,
+  `superseded`, or `archived` pending state back to `router_notified`.
+  If work is blocked, waiting for human input, or still in progress, leave the
+  file in `.core_program/pending/`.
 - If commit, push, or comment posting is blocked by login, permission, rate limit, network, or another interactive requirement, use `authentication_blocked`.
 
 For `authentication_blocked`, include this human-facing message:

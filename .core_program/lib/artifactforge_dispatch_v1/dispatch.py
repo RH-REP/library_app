@@ -32,6 +32,7 @@ DEFAULT_PENDING_DIR = CORE_DIR / "pending"
 DEFAULT_ARCHIVE_DIR = CORE_DIR / "archive"
 DEFAULT_LOCKS_DIR = CORE_DIR / "locks"
 DEFAULT_ASSIGNMENT_STATE_PATH = CORE_DIR / "assignment_state.json"
+DEFAULT_PENDING_STATE_PATH = CORE_DIR / "pending_state.json"
 DEFAULT_SESSION_ROUTER_PROMPT = CORE_DIR / "prompts" / "session_router_v1.md"
 DEFAULT_SESSION_ROUTER_BOOTSTRAP_PROMPT = (
     CORE_DIR / "prompts" / "session_router_bootstrap_v1.md"
@@ -49,6 +50,16 @@ SESSION_DEFER_REASONS = frozenset(
     {
         "session_has_unresolved_pending",
         "target_session_already_dispatched_this_run",
+    }
+)
+PENDING_STATE_RENOTIFY_SKIP_STATUSES = frozenset(
+    {
+        "dispatched",
+        "blocked",
+        "human_waiting",
+        "deferred",
+        "superseded",
+        "archived",
     }
 )
 
@@ -624,9 +635,9 @@ def _router_orchestration_instructions(
             "- Do not archive pending work merely because a bug report was posted.",
             "- Before asking the user a question, write a resumption memo under `.core_program/request_for_human/` so the work can resume smoothly if the human is unavailable.",
             "- Request memo template: 日時: / Pending fingerprints: / Worker session ID: / 問い合わせ内容:",
-            "- After a pending record is resolved and the final GitHub issue comment with the required marker is posted, move it from `.core_program/pending/` to `.core_program/archive/` with the same filename.",
-            "- Example: `mv .core_program/pending/xxx.md .core_program/archive/xxx.md`.",
-            "- Do not archive blocked, deferred, human-waiting, or in-progress pending records.",
+            "- Do not move pending files to archive. Python fetch/reconcile owns the pending-to-archive transition after it observes the exact GitHub marker for the pending fingerprint.",
+            "- After posting or confirming the final marker, leave the pending file in `.core_program/pending/` so the next Python fetch/reconcile can archive it safely.",
+            "- Do not reset `dispatched`, `blocked`, `human_waiting`, `deferred`, `superseded`, or `archived` pending state back to `router_notified`.",
             "",
             "Output:",
             "- Report concise routing progress in this visible router session.",
@@ -743,9 +754,10 @@ def build_dispatch_prompt(
             "queue_file_moved_to_pending_before_router_send": pending_path is not None,
             "router_should_scan_all_pending_records": True,
             "router_should_dispatch_selected_pending_records_itself": True,
-            "archive_pending_after_final_comment": True,
-            "archive_command_template": "mv .core_program/pending/xxx.md .core_program/archive/xxx.md",
-            "do_not_archive_before_comment_marker": True,
+            "pending_archive_owner": "python_fetch_reconcile",
+            "python_reconcile_archives_after_exact_marker": True,
+            "router_must_not_move_pending_to_archive": True,
+            "do_not_reset_non_notify_pending_state": True,
         }
         payload["source_queue_record"] = _record_payload(source)
         payload["source_prompt_kind"] = source.prompt_kind
@@ -762,9 +774,9 @@ def build_dispatch_prompt(
             "may_spawn_subagents_for_minimal_implementation_and_verification_pairs": True,
             "subagents_do_not_post_github_markers": True,
             "permission_blocked_must_report_authentication_blocked_to_router": True,
-            "archive_pending_after_final_comment": True,
-            "archive_command_template": "mv .core_program/pending/xxx.md .core_program/archive/xxx.md",
-            "do_not_archive_before_comment_marker": True,
+            "pending_archive_owner": "python_fetch_reconcile",
+            "python_reconcile_archives_after_exact_marker": True,
+            "worker_must_not_move_pending_to_archive": True,
         }
         payload["github_comment_contract"] = {
             "visible_comment_required": not local_demo,
@@ -967,6 +979,27 @@ def duplicate_dispatch_reason(
     return "fingerprint_already_pending"
 
 
+def pending_state_renotify_skip_reason(
+    record: QueueRecord,
+    *,
+    pending_path: str | Path,
+    pending_state_path: Optional[Union[str, Path]] = DEFAULT_PENDING_STATE_PATH,
+) -> Optional[str]:
+    if pending_state_path is None:
+        return None
+    state_record = _matching_pending_state_record(
+        pending_state_path,
+        pending_path=pending_path,
+        trigger_fingerprint=record.trigger_fingerprint,
+    )
+    if state_record is None:
+        return None
+    status = _pending_state_status(state_record)
+    if status in PENDING_STATE_RENOTIFY_SKIP_STATUSES:
+        return f"pending_state_{status}"
+    return None
+
+
 def target_session_busy_reason(
     record: QueueRecord,
     *,
@@ -1024,6 +1057,127 @@ def _fingerprint_in_index(fingerprints: Iterable[str], fingerprint: str) -> bool
 
 def _fingerprints_match(left: str, right: str) -> bool:
     return left == right or safe_filename_part(left) == safe_filename_part(right)
+
+
+def _matching_pending_state_record(
+    pending_state_path: str | Path,
+    *,
+    pending_path: str | Path,
+    trigger_fingerprint: str,
+) -> Optional[Dict[str, object]]:
+    pending = Path(pending_path)
+    for record in _read_pending_state_records(pending_state_path):
+        if _pending_state_record_matches(
+            record,
+            pending_path=pending,
+            trigger_fingerprint=trigger_fingerprint,
+        ):
+            return record
+    return None
+
+
+def _read_pending_state_records(path: str | Path) -> Tuple[Dict[str, object], ...]:
+    state_path = Path(path)
+    if not state_path.exists():
+        return ()
+    try:
+        payload = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ()
+    return _pending_state_records_from_node(payload)
+
+
+def _pending_state_records_from_node(payload: object) -> Tuple[Dict[str, object], ...]:
+    if isinstance(payload, list):
+        return tuple(item for item in payload if isinstance(item, dict))
+    if not isinstance(payload, dict):
+        return ()
+    if _looks_like_pending_state_record(payload):
+        return (payload,)
+    for key in ("records", "pending_records", "pending", "items"):
+        if key in payload:
+            records = _pending_state_records_from_node(payload[key])
+            if records:
+                return records
+    records = []
+    for key, value in payload.items():
+        if not isinstance(value, dict):
+            continue
+        record = dict(value)
+        record.setdefault("pending_path", key)
+        records.append(record)
+    return tuple(records)
+
+
+def _looks_like_pending_state_record(payload: Dict[str, object]) -> bool:
+    if "status" not in payload and "state" not in payload:
+        return False
+    return any(
+        key in payload
+        for key in (
+            "pending_path",
+            "path",
+            "file",
+            "pending_file",
+            "trigger_fingerprint",
+            "fingerprint",
+        )
+    )
+
+
+def _pending_state_record_matches(
+    record: Dict[str, object],
+    *,
+    pending_path: Path,
+    trigger_fingerprint: str,
+) -> bool:
+    state_pending_path = _pending_state_text(
+        record,
+        ("pending_path", "path", "file", "pending_file"),
+    )
+    if state_pending_path and _pending_paths_match(state_pending_path, pending_path):
+        return True
+    state_fingerprint = _pending_state_text(
+        record,
+        ("trigger_fingerprint", "fingerprint"),
+    )
+    return bool(
+        state_fingerprint
+        and trigger_fingerprint
+        and _fingerprints_match(state_fingerprint, trigger_fingerprint)
+    )
+
+
+def _pending_state_text(
+    record: Dict[str, object],
+    keys: Sequence[str],
+) -> str:
+    for key in keys:
+        value = record.get(key)
+        if value is not None:
+            return str(value).strip()
+    return ""
+
+
+def _pending_paths_match(state_path: str, pending_path: Path) -> bool:
+    state_text = state_path.strip().replace("\\", "/")
+    pending_text = str(pending_path).replace("\\", "/")
+    if not state_text:
+        return False
+    if state_text == pending_text:
+        return True
+    if Path(state_text).name == pending_path.name:
+        return True
+    return pending_text.endswith("/" + state_text.lstrip("./"))
+
+
+def _pending_state_status(record: Dict[str, object]) -> str:
+    return (
+        str(record.get("status") or record.get("state") or "")
+        .strip()
+        .lower()
+        .replace("-", "_")
+    )
 
 
 def assignment_session_id(path: str | Path, *, issue_number: int) -> Optional[str]:
@@ -1211,6 +1365,7 @@ def dispatch_queue_file(
     move_to_pending: bool = True,
     runner: Runner = _default_runner,
     assignment_state_path: Optional[Union[str, Path]] = None,
+    pending_state_path: Optional[Union[str, Path]] = DEFAULT_PENDING_STATE_PATH,
     router_session_id: Optional[str] = None,
 ) -> DispatchResult:
     plan = plan_dispatch(
@@ -1226,6 +1381,12 @@ def dispatch_queue_file(
         pending_dir=pending_dir,
         archive_dir=archive_dir,
     )
+    if not skip_reason:
+        skip_reason = pending_state_renotify_skip_reason(
+            plan.record,
+            pending_path=plan.pending_path,
+            pending_state_path=pending_state_path,
+        )
     if not skip_reason:
         skip_reason = router_session_busy_reason(
             plan.router_session_id,
@@ -1372,6 +1533,7 @@ def dispatch_queue(
     move_to_pending: bool = True,
     runner: Runner = _default_runner,
     assignment_state_path: Optional[Union[str, Path]] = None,
+    pending_state_path: Optional[Union[str, Path]] = DEFAULT_PENDING_STATE_PATH,
     limit: Optional[int] = None,
     parallel: int = 1,
     claim_files: bool = True,
@@ -1387,6 +1549,7 @@ def dispatch_queue(
         repo_dir=repo_dir,
         codex_bin=codex_bin,
         assignment_state_path=assignment_state_path,
+        pending_state_path=pending_state_path,
         dry_run=dry_run,
         move_to_pending=move_to_pending,
     )
@@ -1516,6 +1679,7 @@ def _prepare_pending_batch_paths(
     repo_dir: str | Path,
     codex_bin: str | Path,
     assignment_state_path: Optional[Union[str, Path]],
+    pending_state_path: Optional[Union[str, Path]],
     dry_run: bool,
     move_to_pending: bool,
 ) -> Tuple[Tuple[int, DispatchPlan, Optional[DispatchResult]], ...]:
@@ -1594,6 +1758,12 @@ def _prepare_pending_batch_paths(
             pending_dir=pending_dir,
             archive_dir=archive_dir,
         )
+        if not skip_reason:
+            skip_reason = pending_state_renotify_skip_reason(
+                plan.record,
+                pending_path=plan.pending_path,
+                pending_state_path=pending_state_path,
+            )
         if not skip_reason and plan.record.trigger_fingerprint in seen_fingerprints:
             skip_reason = "fingerprint_already_selected"
         if skip_reason:
@@ -1767,9 +1937,10 @@ def build_session_router_batch_prompt(
                 "Worker session ID": "",
                 "問い合わせ内容": "",
             },
-            "archive_pending_after_final_comment": True,
-            "archive_command_template": "mv .core_program/pending/xxx.md .core_program/archive/xxx.md",
-            "do_not_archive_before_comment_marker": True,
+            "pending_archive_owner": "python_fetch_reconcile",
+            "python_reconcile_archives_after_exact_marker": True,
+            "router_must_not_move_pending_to_archive": True,
+            "do_not_reset_non_notify_pending_state": True,
             "router_reads_pending_as_worklist": True,
             "assignment_state_is_advisory_routing_state": True,
             "router_is_only_user_permission_gateway": True,

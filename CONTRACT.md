@@ -90,6 +90,11 @@ is a machine-readable ledger used by the Session_router to distinguish unsent,
 dispatched/in-progress, deferred, blocked, human-waiting, superseded, and
 archived pending records.
 
+Python fetch/reconcile owns the transition from `.core_program/pending/` to
+`.core_program/archive/`. Routers, workers, and subagents must leave pending
+files in place after posting or observing final markers; Python archives only
+after it confirms the exact pending `trigger_fingerprint` marker on GitHub.
+
 Normal project requirements and human-facing issue decisions do not belong in
 `.core_program/`.
 

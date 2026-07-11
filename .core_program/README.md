@@ -201,17 +201,16 @@ superseded
 archived
 ```
 
-When the pending work is resolved and the final GitHub issue comment with the
-required
-`codex-agent-v1` marker has been posted, the corresponding pending file is
-moved to archive with the same filename:
+Python fetch/reconcile owns pending archive. When it observes the exact
+`codex-agent-v1` marker for a pending `trigger_fingerprint` on GitHub, it moves
+the corresponding pending file to `.core_program/archive/` with the same
+filename and updates archive-related state. Routers and workers must not move
+pending files to archive themselves, and must not reset `dispatched`, `blocked`,
+`human_waiting`, `deferred`, `superseded`, or `archived` records back to
+`router_notified`.
 
-```sh
-mv .core_program/pending/xxx.md .core_program/archive/xxx.md
-```
-
-Blocked, deferred, human-waiting, or in-progress records stay in
-`.core_program/pending/`.
+Blocked, deferred, human-waiting, dispatched/in-progress, or marker-not-yet-seen
+records stay in `.core_program/pending/`.
 
 Older pending files that are covered by a newer `thread_update` starting at the
 same issue/comment source are superseded. They must not be dispatched as

@@ -179,6 +179,20 @@ def write_assignment_state(
     )
 
 
+def write_pending_state(path: Path, records: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "records": records,
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+
 class DispatchTest(unittest.TestCase):
     def test_queue_record_round_trip_and_prompt_wrapping(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -233,11 +247,9 @@ class DispatchTest(unittest.TestCase):
                 '"may_spawn_subagents_for_minimal_implementation_and_verification_pairs": true',
                 worker_prompt,
             )
-            self.assertIn('"archive_pending_after_final_comment": true', worker_prompt)
-            self.assertIn(
-                '"archive_command_template": "mv .core_program/pending/xxx.md .core_program/archive/xxx.md"',
-                worker_prompt,
-            )
+            self.assertIn('"pending_archive_owner": "python_fetch_reconcile"', worker_prompt)
+            self.assertIn('"worker_must_not_move_pending_to_archive": true', worker_prompt)
+            self.assertNotIn("mv .core_program/pending/xxx.md", worker_prompt)
             self.assertIn('"post_comment_required": true', worker_prompt)
             self.assertIn('"push_required": true', worker_prompt)
             self.assertIn("- recipient_role: router", router_prompt)
@@ -250,8 +262,10 @@ class DispatchTest(unittest.TestCase):
             self.assertIn('"check_request_for_human_empty_before_pending": true', router_prompt)
             self.assertIn('"write_request_for_human_memo_before_user_question": true', router_prompt)
             self.assertIn('"Pending fingerprints"', router_prompt)
-            self.assertIn('"archive_pending_after_final_comment": true', router_prompt)
-            self.assertIn("mv .core_program/pending/xxx.md .core_program/archive/xxx.md", router_prompt)
+            self.assertIn('"pending_archive_owner": "python_fetch_reconcile"', router_prompt)
+            self.assertIn('"router_must_not_move_pending_to_archive": true', router_prompt)
+            self.assertIn('"do_not_reset_non_notify_pending_state": true', router_prompt)
+            self.assertNotIn("mv .core_program/pending/xxx.md", router_prompt)
             self.assertIn('"router_posts_contract_violation_bug_report": true', router_prompt)
             self.assertIn(
                 '"contract_violation_bug_report_default_status": "authentication_blocked"',
@@ -941,6 +955,96 @@ class DispatchTest(unittest.TestCase):
             self.assertEqual([], runner.calls)
             self.assertTrue(queue_path.exists())
 
+    def test_dispatch_skips_non_notify_pending_state_statuses(self) -> None:
+        for status in sorted(dispatch_module.PENDING_STATE_RENOTIFY_SKIP_STATUSES):
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                queue_path = root / "queue" / "stale.md"
+                pending_dir = root / "pending"
+                pending_state = root / "pending_state.json"
+                assignment_state = root / "assignment_state.json"
+                fingerprint = f"issue-7-body-sha256-{status}"
+                write_assignment_state(assignment_state)
+                write_queue_record(
+                    queue_path,
+                    sample_record(trigger_fingerprint=fingerprint),
+                )
+                write_pending_state(
+                    pending_state,
+                    [
+                        {
+                            "pending_path": str(pending_dir / "stale.md"),
+                            "trigger_fingerprint": fingerprint,
+                            "status": status,
+                            "worker_session_id": WORKER_SESSION_ID,
+                        }
+                    ],
+                )
+                runner = FakeCodexRunner()
+
+                result = dispatch_queue_file(
+                    queue_path,
+                    pending_dir=pending_dir,
+                    pending_state_path=pending_state,
+                    assignment_state_path=assignment_state,
+                    runner=runner,
+                )
+
+                self.assertTrue(result.skipped)
+                self.assertEqual(f"pending_state_{status}", result.skip_reason)
+                self.assertEqual([], runner.calls)
+                self.assertTrue(queue_path.exists())
+                state = json.loads(pending_state.read_text(encoding="utf-8"))
+                self.assertEqual(
+                    WORKER_SESSION_ID,
+                    state["records"][0]["worker_session_id"],
+                )
+
+    def test_dispatch_queue_does_not_renotify_dispatched_pending_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            queue_dir = root / "queue"
+            pending_dir = root / "pending"
+            pending_state = root / "pending_state.json"
+            assignment_state = root / "assignment_state.json"
+            fingerprint = "issue-31-thread-body-comment-sha256-d207"
+            write_assignment_state(assignment_state)
+            write_queue_record(
+                queue_dir / "031.md",
+                sample_record(
+                    issue_number=31,
+                    trigger_fingerprint=fingerprint,
+                    target_session_id=WORKER_SESSION_ID,
+                ),
+            )
+            write_pending_state(
+                pending_state,
+                [
+                    {
+                        "pending_path": str(pending_dir / "031.md"),
+                        "trigger_fingerprint": fingerprint,
+                        "status": "dispatched",
+                        "worker_session_id": WORKER_SESSION_ID,
+                    }
+                ],
+            )
+            runner = FakeCodexRunner()
+
+            results = dispatch_queue(
+                queue_dir,
+                pending_dir=pending_dir,
+                pending_state_path=pending_state,
+                assignment_state_path=assignment_state,
+                runner=runner,
+            )
+
+            self.assertEqual(1, len(results))
+            self.assertTrue(results[0].skipped)
+            self.assertEqual("pending_state_dispatched", results[0].skip_reason)
+            self.assertEqual([], runner.calls)
+            self.assertTrue((queue_dir / "031.md").exists())
+            self.assertFalse((pending_dir / "031.md").exists())
+
     def test_dispatch_queue_batches_multiple_items_into_one_router_invocation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -985,8 +1089,10 @@ class DispatchTest(unittest.TestCase):
             self.assertIn(".core_program/request_for_human", runner.calls[0][2])
             self.assertIn('"check_request_for_human_empty_before_pending": true', runner.calls[0][2])
             self.assertIn('"write_request_for_human_memo_before_user_question": true', runner.calls[0][2])
-            self.assertIn('"archive_pending_after_final_comment": true', runner.calls[0][2])
-            self.assertIn("mv .core_program/pending/xxx.md .core_program/archive/xxx.md", runner.calls[0][2])
+            self.assertIn('"pending_archive_owner": "python_fetch_reconcile"', runner.calls[0][2])
+            self.assertIn('"router_must_not_move_pending_to_archive": true', runner.calls[0][2])
+            self.assertIn('"do_not_reset_non_notify_pending_state": true', runner.calls[0][2])
+            self.assertNotIn("mv .core_program/pending/xxx.md", runner.calls[0][2])
             self.assertIn('"router_posts_contract_violation_bug_report": true', runner.calls[0][2])
             self.assertIn(
                 '"contract_violation_bug_report_default_status": "authentication_blocked"',

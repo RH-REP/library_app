@@ -79,6 +79,8 @@ class RunDispatchQueueTest(unittest.TestCase):
                     str(Path(temp_dir) / "inflight"),
                     "--pending-dir",
                     str(Path(temp_dir) / "pending"),
+                    "--pending-state",
+                    str(Path(temp_dir) / "pending_state.json"),
                     "--archive-dir",
                     str(Path(temp_dir) / "archive"),
                     "--locks-dir",
@@ -91,6 +93,10 @@ class RunDispatchQueueTest(unittest.TestCase):
 
         self.assertEqual(0, exit_code)
         self.assertEqual(str(Path(temp_dir) / "inflight"), calls[0][1]["inflight_dir"])
+        self.assertEqual(
+            str(Path(temp_dir) / "pending_state.json"),
+            calls[0][1]["pending_state_path"],
+        )
         self.assertEqual(str(Path(temp_dir) / "locks"), calls[0][1]["locks_dir"])
         self.assertEqual(4, calls[0][1]["parallel"])
         self.assertEqual("claimed_before_dispatch", summary["effects"]["inflight_files"])

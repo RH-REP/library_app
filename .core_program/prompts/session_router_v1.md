@@ -106,8 +106,8 @@ Task:
   attention, or `reassign_required` only when the violation is specifically a
   wrong-session assignment.
 - Do not move the pending file to archive merely because a bug report was
-  posted. Archive only after the underlying pending work is actually resolved
-  and the final worker comment/marker has been posted.
+  posted. Python fetch/reconcile owns pending archive after it observes the
+  exact final marker on GitHub.
 - When a judgment requires human input and the human may not be reachable, write
   a resumption memo under `.core_program/request_for_human/` before asking the
   question. Use a short filename that includes the issue number or pending
@@ -120,15 +120,14 @@ Worker session ID:
 問い合わせ内容:
 ```
 
-- When a pending record is resolved and the final GitHub issue comment with the
-  required `codex-agent-v1` marker has been posted, move the corresponding file
-  from `.core_program/pending/` to `.core_program/archive/` with the same
-  filename. Example: `mv .core_program/pending/xxx.md .core_program/archive/xxx.md`.
-- Then update `.core_program/pending_state.json` to `archived` with the archive
-  path.
-- Do not move a pending file to archive before the final comment and marker are
-  posted. If work is blocked, deferred, waiting for human input, or still in
-  progress, leave the file in `.core_program/pending/`.
+- Do not move pending files to archive. After the final GitHub issue comment
+  with the required `codex-agent-v1` marker is posted, leave the pending file in
+  `.core_program/pending/`; the next Python fetch/reconcile archives it after
+  confirming the exact pending `trigger_fingerprint` marker.
+- Do not reset `dispatched`, `blocked`, `human_waiting`, `deferred`,
+  `superseded`, or `archived` pending state back to `router_notified`.
+  If work is blocked, deferred, waiting for human input, or still in progress,
+  leave the file in `.core_program/pending/`.
 
 Output contract:
 - Normal Session_router output is user/operator-facing, not a worker-session-ID

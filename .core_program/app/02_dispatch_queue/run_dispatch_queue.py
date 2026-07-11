@@ -20,6 +20,7 @@ from artifactforge_dispatch_v1.dispatch import (  # noqa: E402
     DEFAULT_INFLIGHT_DIR,
     DEFAULT_LOCKS_DIR,
     DEFAULT_PENDING_DIR,
+    DEFAULT_PENDING_STATE_PATH,
     DEFAULT_QUEUE_DIR,
     DEFAULT_ASSIGNMENT_STATE_PATH,
     REPO_ROOT,
@@ -33,6 +34,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--queue-dir", default=str(DEFAULT_QUEUE_DIR))
     parser.add_argument("--inflight-dir", default=str(DEFAULT_INFLIGHT_DIR))
     parser.add_argument("--pending-dir", default=str(DEFAULT_PENDING_DIR))
+    parser.add_argument("--pending-state", default=str(DEFAULT_PENDING_STATE_PATH))
     parser.add_argument("--archive-dir", default=str(DEFAULT_ARCHIVE_DIR))
     parser.add_argument("--locks-dir", default=str(DEFAULT_LOCKS_DIR))
     parser.add_argument("--repo-dir", default=str(REPO_ROOT))
@@ -65,6 +67,7 @@ def main(argv: list[str] | None = None) -> int:
         args.queue_dir,
         inflight_dir=args.inflight_dir,
         pending_dir=args.pending_dir,
+        pending_state_path=args.pending_state,
         archive_dir=args.archive_dir,
         locks_dir=args.locks_dir,
         repo_dir=args.repo_dir,
