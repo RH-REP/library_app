@@ -26,3 +26,11 @@
 - fixture README に `source_samples/` の用途を追記した。
 - `artifact.md` にサンプル原本収集の follow-up を追記した。
 - `issue_log/004_library_feature_brainstorm/issue_5_alpha_source_samples.md` を作成した。
+
+## 2026-07-11 follow-up 3: Issue #5 実在ソース版
+
+- ユーザーの追加コメントを確認した。
+- synthetic fixture とは別に、実際に検索した HTML、PDF、JPEG を `source_samples/actual/` に保存した。
+- `records/actual_web_source_samples.json` に URL、出典、取得日、用途を記録した。
+- `artifact.md`、`sub_goal.md`、`plan.md` に actual source の追記を行った。
+- `issue_log/004_library_feature_brainstorm/issue_5_actual_source_samples.md` を作成した。

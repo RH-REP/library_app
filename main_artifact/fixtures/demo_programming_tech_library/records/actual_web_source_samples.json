@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "collection_id": "actual_web_source_samples_2026_07_11",
+  "purpose": "public web source samples collected for issue 5 actual-search follow-up",
+  "items": [
+    {
+      "id": "actual_requirements_html",
+      "source_type": "html",
+      "important_element": "何を作るか明確にする",
+      "discipline_name": "要求工学・仕様化",
+      "source_path": "main_artifact/fixtures/demo_programming_tech_library/source_samples/actual/html/requirements_engineering_wikipedia.html",
+      "source_url": "https://en.wikipedia.org/wiki/Requirements_engineering",
+      "source_title": "Requirements engineering - Wikipedia",
+      "source_origin": "Wikipedia",
+      "retrieved_on": "2026-07-11",
+      "notes": "HTML-to-plain-text の first cut 検証用。site chrome を含む実在 HTML snapshot。"
+    },
+    {
+      "id": "actual_design_pdf",
+      "source_type": "pdf",
+      "important_element": "変更しやすく設計する",
+      "discipline_name": "ソフトウェア設計",
+      "source_path": "main_artifact/fixtures/demo_programming_tech_library/source_samples/actual/pdf/software_through_pictures_arxiv.pdf",
+      "source_url": "https://arxiv.org/pdf/2403.08085.pdf",
+      "source_title": "Lessons from a Pioneering Software Engineering Environment: Design Principles of Software through Pictures",
+      "source_origin": "arXiv",
+      "retrieved_on": "2026-07-11",
+      "notes": "text PDF を前提にした PDF-to-plain-text 検証用。"
+    },
+    {
+      "id": "actual_testing_image",
+      "source_type": "jpg",
+      "important_element": "正しさを継続的に確認する",
+      "discipline_name": "ソフトウェアテスト・品質保証",
+      "source_path": "main_artifact/fixtures/demo_programming_tech_library/source_samples/actual/image/software_testing_wikipedia.jpg",
+      "source_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/TestingCup-Polish-Championship-in-Software-Testing-Katowice-2016.jpg/1280px-TestingCup-Polish-Championship-in-Software-Testing-Katowice-2016.jpg",
+      "source_title": "TestingCup-Polish-Championship-in-Software-Testing-Katowice-2016",
+      "source_origin": "Wikipedia Commons",
+      "retrieved_on": "2026-07-11",
+      "notes": "image-to-plain-text / OCR 導線の検証用。JPEG 1280x853。"
+    }
+  ]
+}

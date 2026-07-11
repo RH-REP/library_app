@@ -58,3 +58,21 @@ alpha の議論だけでは開発に着手しづらいため、共有可能な f
 - サンプルは外部配布物の収集ではなく、共有可能な synthetic fixture として repo 内で生成する。
 - HTML は要求工学・仕様化、PDF はソフトウェア設計、画像はソフトウェアテスト・品質保証に対応させる。
 - 登録や preview の検証では、`records/alpha_source_samples.json` を最初の参照 index として使える。
+
+## 2026-07-11 follow-up 3: Issue #5 実検索ソース版
+
+### 方針
+
+synthetic fixture は維持したまま、実際に検索した外部ソースを別セットとして保存する。
+plain text 化や OCR の検証では、実在ソースの方がノイズや前処理条件を把握しやすい。
+
+### 作業項目
+
+- [x] HTML、PDF、JPEG の実在ソースを検索して保存する。
+- [x] URL、出典、用途を machine-readable な index にする。
+- [x] issue log に provenance を残す。
+
+### この時点での判断
+
+- synthetic fixture と actual web source は役割が違うため、置換ではなく併存にする。
+- issue #6 の text extraction 機能は、まずこの actual source セットを入力として扱う。

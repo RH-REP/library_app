@@ -35,3 +35,22 @@
 - `alpha_source_samples.json` を前提にした原本マスターテーブル schema を作る。
 - 3 種類の原本を登録できる最小フローを作る。
 - source type ごとの一覧/詳細 UI の差分を決める。
+
+## 2026-07-11 追加対応: 実検索ソース版
+
+ユーザーの follow-up に合わせて、synthetic fixture とは別に、実際に検索して取得した
+外部ソース版も保存した。
+
+追加したもの:
+
+- `main_artifact/fixtures/demo_programming_tech_library/source_samples/actual/html/requirements_engineering_wikipedia.html`
+- `main_artifact/fixtures/demo_programming_tech_library/source_samples/actual/pdf/software_through_pictures_arxiv.pdf`
+- `main_artifact/fixtures/demo_programming_tech_library/source_samples/actual/image/software_testing_wikipedia.jpg`
+- `main_artifact/fixtures/demo_programming_tech_library/records/actual_web_source_samples.json`
+
+判断:
+
+- 共有しやすい synthetic fixture は残す。
+- 一方で、HTML/PDF/image の実在ソースを別セットで保存し、plain text 化や OCR の
+  前処理検証に使えるようにする。
+- URL、出典、取得日は `actual_web_source_samples.json` に寄せる。
