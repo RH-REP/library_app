@@ -485,15 +485,22 @@ def human_summary(
         for item in pending_items
         if isinstance(item, dict) and item.get("action") == "archive"
     ]
+    human_waiting_lines = [
+        _pending_item_line(item)
+        for item in pending_items
+        if isinstance(item, dict) and item.get("action") == "human_waiting"
+    ]
     kept_pending_lines = [
         _pending_item_line(item)
         for item in pending_items
         if isinstance(item, dict) and item.get("action") != "archive"
+        and item.get("action") != "human_waiting"
     ]
     requeue_commands = [
         _pending_requeue_command(item, queue_dir=queue_dir)
         for item in pending_items
         if isinstance(item, dict) and item.get("action") != "archive"
+        and item.get("action") != "human_waiting"
     ]
     queued_lines = [
         _queue_item_line(item)
@@ -518,6 +525,8 @@ def human_summary(
     if requeue_commands:
         lines.append("")
         lines.extend(_numbered_block("pending -> queue commands", requeue_commands))
+    lines.append("")
+    lines.extend(_numbered_block("human_wating", human_waiting_lines))
     lines.append("")
     lines.extend(
         _numbered_block(

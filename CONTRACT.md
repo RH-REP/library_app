@@ -91,8 +91,8 @@ there if it has already been closed.
 ### `.core_program/`
 
 `.core_program/` is the internal engine boundary. It owns machine-facing runtime
-state, prompts, queue files, pending files, archives, assignment state, and
-diagnostics.
+state, prompts, queue files, pending files, human_wating files, archives,
+assignment state, and diagnostics.
 
 Pending orchestration state belongs in `.core_program/pending_state.json`. It
 is a machine-readable ledger used by the Session_router to distinguish unsent,
@@ -100,9 +100,12 @@ dispatched/in-progress, deferred, blocked, human-waiting, superseded, and
 archived pending records.
 
 Python fetch/reconcile owns the transition from `.core_program/pending/` to
-`.core_program/archive/`. Routers, workers, and subagents must leave pending
-files in place after posting or observing final markers; Python archives only
-after it confirms the exact pending `trigger_fingerprint` marker on GitHub.
+`.core_program/archive/` for `status: done` and from `.core_program/pending/`
+to `.core_program/human_wating/` for `status: reassign_required` or
+`status: authentication_blocked`. Routers, workers, and subagents must leave
+pending files in place after posting or observing final markers; Python moves
+them only after it confirms the exact pending `trigger_fingerprint` marker on
+GitHub.
 
 Normal project requirements and human-facing issue decisions do not belong in
 `.core_program/`.

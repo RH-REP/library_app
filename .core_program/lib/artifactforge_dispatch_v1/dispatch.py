@@ -20,6 +20,7 @@ from .models import QueueRecord
 from .queueing import (
     build_queue_markdown,
     collect_existing_fingerprints,
+    human_waiting_dir_for,
     reserved_initialization_issue_numbers,
     safe_filename_part,
 )
@@ -640,6 +641,7 @@ def _router_orchestration_instructions(
             "- Do not move pending files to archive. Python fetch/reconcile owns the pending-to-archive transition after it observes the exact GitHub marker for the pending fingerprint.",
             "- After posting or confirming the final marker, leave the pending file in `.core_program/pending/` so the next Python fetch/reconcile can archive it safely.",
             "- Do not reset `dispatched`, `blocked`, `human_waiting`, `deferred`, `superseded`, or `archived` pending state back to `router_notified`.",
+            "- Python fetch/reconcile moves `status: done` records to `.core_program/archive/` and moves `reassign_required` or `authentication_blocked` records to `.core_program/human_wating/`.",
             "",
             "Output:",
             "- Report concise routing progress in this visible router session.",
@@ -852,6 +854,7 @@ def build_dispatch_prompt(
             "The user's human-facing interface is the Session_router; child sessions default to non-visible.\n"
             "Worker and subagent sessions default to non-visible; visible child sessions require a recorded reason.\n"
             "Any login, approval, permission, or TTY requirement must be routed through the Session_router.\n"
+            "Python fetch/reconcile moves `status: done` records to `.core_program/archive/` and moves `reassign_required` or `authentication_blocked` records to `.core_program/human_wating/`.\n"
             "If recipient_role is worker, process the issue thread update as the assigned worker.\n"
             "If recipient_role is router, read `.core_program/pending` and dispatch/delegate from there; "
             "do not ask the dispatcher to send worker prompts.\n\n"
@@ -983,6 +986,7 @@ def duplicate_dispatch_reason(
 
     pending_sessions = _pending_sessions_for_fingerprint(
         pending_dir,
+        human_waiting_dir_for(pending_dir),
         record.trigger_fingerprint,
     )
     if not pending_sessions:
@@ -1051,20 +1055,23 @@ def target_session_has_unresolved_pending(
     target_session_id = str(session_id).strip()
     if not target_session_id:
         return False
-    for record in iter_pending_records(pending_dir):
-        if record.session_id == target_session_id:
-            return True
+    for path in (pending_dir, human_waiting_dir_for(pending_dir)):
+        for record in iter_pending_records(path):
+            if record.session_id == target_session_id:
+                return True
     return False
 
 
 def _pending_sessions_for_fingerprint(
     pending_dir: str | Path,
+    human_waiting_dir: str | Path,
     fingerprint: str,
 ) -> Tuple[str, ...]:
     sessions = []
-    for record in iter_pending_records(pending_dir):
-        if _fingerprints_match(record.trigger_fingerprint, fingerprint):
-            sessions.append(record.session_id)
+    for path in (pending_dir, human_waiting_dir):
+        for record in iter_pending_records(path):
+            if _fingerprints_match(record.trigger_fingerprint, fingerprint):
+                sessions.append(record.session_id)
     return tuple(sessions)
 
 

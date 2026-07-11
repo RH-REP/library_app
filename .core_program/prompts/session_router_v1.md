@@ -124,6 +124,9 @@ Worker session ID:
   with the required `codex-agent-v1` marker is posted, leave the pending file in
   `.core_program/pending/`; the next Python fetch/reconcile archives it after
   confirming the exact pending `trigger_fingerprint` marker.
+- Python fetch/reconcile moves `status: done` records to `.core_program/archive/`
+  and moves `reassign_required` or `authentication_blocked` records to
+  `.core_program/human_wating/`.
 - Do not reset `dispatched`, `blocked`, `human_waiting`, `deferred`,
   `superseded`, or `archived` pending state back to `router_notified`.
   If work is blocked, deferred, waiting for human input, or still in progress,

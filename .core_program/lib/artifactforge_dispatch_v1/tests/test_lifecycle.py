@@ -334,12 +334,13 @@ class LifecycleTest(unittest.TestCase):
             self.assertTrue(pending_path.exists())
             self.assertFalse(archive_dir.exists())
 
-    def test_blocked_marker_keeps_pending_and_reassign_marker_archives_rejected_worker(self) -> None:
+    def test_blocked_marker_moves_to_human_wating_and_reassign_marker_does_the_same(self) -> None:
         reassign_fingerprint = "issue-1-body-sha256-reassign"
         auth_fingerprint = "issue-2-body-sha256-auth"
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             pending_dir = tmp_path / "pending"
+            human_waiting_dir = tmp_path / "human_wating"
             archive_dir = tmp_path / "archive"
             pending_dir.mkdir()
             reassign_path = pending_dir / f"{SESSION_ID}_{reassign_fingerprint}.md"
@@ -371,7 +372,7 @@ class LifecycleTest(unittest.TestCase):
             }
 
             self.assertEqual(
-                "archive",
+                "human_waiting",
                 result_by_fingerprint[reassign_fingerprint].action,
             )
             self.assertTrue(
@@ -379,15 +380,46 @@ class LifecycleTest(unittest.TestCase):
             )
             self.assertEqual((reassign_fingerprint,), summary.reassign_required_fingerprints)
             self.assertEqual(
-                "keep_pending",
+                {reassign_fingerprint, auth_fingerprint},
+                set(summary.human_waiting_fingerprints),
+            )
+            self.assertEqual(
+                "human_waiting",
                 result_by_fingerprint[auth_fingerprint].action,
             )
             self.assertTrue(
                 result_by_fingerprint[auth_fingerprint].authentication_blocked
             )
             self.assertFalse(reassign_path.exists())
-            self.assertTrue(auth_path.exists())
-            self.assertTrue(archive_dir.exists())
+            self.assertFalse(auth_path.exists())
+            self.assertTrue((human_waiting_dir / reassign_path.name).exists())
+            self.assertTrue((human_waiting_dir / auth_path.name).exists())
+            self.assertFalse(archive_dir.exists())
+
+    def test_human_wating_records_archive_when_done_marker_arrives(self) -> None:
+        fingerprint = "issue-3-body-sha256-human-wating"
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            pending_dir = tmp_path / "pending"
+            human_waiting_dir = tmp_path / "human_wating"
+            archive_dir = tmp_path / "archive"
+            human_waiting_dir.mkdir(parents=True)
+            waiting_path = human_waiting_dir / f"{SESSION_ID}_{fingerprint}.md"
+            waiting_path.write_text("prompt", encoding="utf-8")
+            issue = issue_with_comment(marker_body(fingerprint, "done"))
+
+            summary = reconcile_pending_from_issues(
+                (issue,),
+                pending_dir=pending_dir,
+                archive_dir=archive_dir,
+                dry_run=False,
+            )
+            result = summary.results[0]
+
+            self.assertEqual("archive", result.action)
+            self.assertTrue(result.moved)
+            self.assertFalse(waiting_path.exists())
+            self.assertTrue(Path(result.archive_path or "").exists())
 
 
 if __name__ == "__main__":

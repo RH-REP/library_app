@@ -87,6 +87,9 @@ links, rewrite the comment before posting.
   comment with the required `codex-agent-v1` marker, leave the exact supplied
   pending file in `.core_program/pending/`; Python fetch/reconcile archives it
   after confirming the exact pending `trigger_fingerprint` marker on GitHub.
+- Python fetch/reconcile moves `status: done` records to `.core_program/archive/`
+  and moves `reassign_required` or `authentication_blocked` records to
+  `.core_program/human_wating/`.
 - Do not reset `dispatched`, `blocked`, `human_waiting`, `deferred`,
   `superseded`, or `archived` pending state back to `router_notified`.
   If work is blocked, waiting for human input, or still in progress, leave the
