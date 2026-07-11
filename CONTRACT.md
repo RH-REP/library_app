@@ -61,17 +61,18 @@ Worker sessions initialize numbered directories such as:
 sub_artifact/NNN_slug/
 ```
 
-The standard file set is:
+The standard starter files are:
 
 ```text
 sub_goal.md
 plan.md
 work_log.md
-artifact.md
 ```
 
-Sub-artifacts support the main artifact. They do not replace
-`main_artifact/goal.md` as the project goal source of truth.
+Sub-artifacts are free-form workspaces. They commonly contain Markdown notes,
+source code, tests, data, generated outputs, screenshots, and other files the
+workstream needs. They do not replace `main_artifact/goal.md` as the project
+goal source of truth.
 
 ### `issue_log/`
 

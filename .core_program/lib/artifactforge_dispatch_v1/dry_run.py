@@ -390,7 +390,7 @@ def planned_sub_artifact_path(
 def planned_sub_artifact_files(sub_artifact_path: str) -> tuple[str, ...]:
     return tuple(
         str(Path(sub_artifact_path) / filename)
-        for filename in ("sub_goal.md", "plan.md", "work_log.md", "artifact.md")
+        for filename in ("sub_goal.md", "plan.md", "work_log.md")
     )
 
 
@@ -603,7 +603,7 @@ def build_summary(
             "router_output": "exactly one session ID line",
             "sub_artifact_initialization": {
                 "mode": "planned_only_in_dry_run",
-                "files": ["sub_goal.md", "plan.md", "work_log.md", "artifact.md"],
+                "files": ["sub_goal.md", "plan.md", "work_log.md"],
             },
         },
         "counts": {

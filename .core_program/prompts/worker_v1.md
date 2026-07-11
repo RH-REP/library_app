@@ -44,11 +44,11 @@ ArtifactForge work rules:
 - Preserve the assigned numeric prefix, but avoid generic placeholder slugs such as `artifact`, `task`, `work`, `item`, `feature`, or `issue`.
 - Prefer 2-5 lowercase ASCII words in snake_case, such as `001_library_search_ui`, `002_book_metadata_import`, or `003_reading_note_export`.
 - Do not create vague names like `001_artifact`, `001_task`, or `001_feature`. If the assigned path is that generic, update `.core_program/assignment_state.json` to the clearer path and use the clearer directory consistently.
-- The standard first-work file set is:
+- The standard starter files are:
   - `sub_goal.md`
   - `plan.md`
   - `work_log.md`
-  - `artifact.md`
+- The rest of `sub_artifact/NNN_slug/` is free-form; add code, tests, data, notes, or generated outputs as needed.
 - The same assignment must be idempotent. Do not create a second sub-artifact path for the same current assignment.
 - Human-readable issue/work notes belong in `issue_log/`.
 - Machine-facing queue, pending, archive, assignment state, and diagnostics belong in `.core_program/`.
@@ -65,7 +65,7 @@ Finalization rules:
   footer.
 - Use clickable GitHub links for repository paths in the final issue comment.
   Do not write only plain backticked paths such as
-  `sub_artifact/004_xxx/artifact.md`.
+  `sub_artifact/004_xxx/plan.md`.
 - For directories, link to
   `https://github.com/OWNER/REPO/tree/BRANCH/path/to/dir`.
 - For files, link to

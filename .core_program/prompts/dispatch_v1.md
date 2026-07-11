@@ -42,7 +42,8 @@ Worker role:
   issue comment, and marker.
 - Read `main_artifact/goal.md` and `main_artifact/development_process.md` when they exist.
 - If this is the first real work for a new assignment, initialize one `sub_artifact/NNN_slug/` directory.
-- The standard first-work file set is `sub_goal.md`, `plan.md`, `work_log.md`, and `artifact.md`.
+- The standard starter files are `sub_goal.md`, `plan.md`, and `work_log.md`.
+- The rest of `sub_artifact/NNN_slug/` is free-form; add code, tests, data, notes, or generated outputs as needed.
 - Use a concrete `NNN_slug` based on the issue title/body and the actual deliverable or workstream.
 - Do not create vague names like `001_artifact`, `001_task`, or `001_feature`.
 - Unless `local_demo_contract.external_side_effects_forbidden` is true, post a
@@ -51,7 +52,7 @@ Worker role:
   GitHub and report the planned comment text in the session only.
 - In the final issue comment, all repository paths must be clickable GitHub
   links. Do not write only plain backticked paths such as
-  `sub_artifact/004_xxx/artifact.md`.
+  `sub_artifact/004_xxx/plan.md`.
 - For directories, link to
   `https://github.com/OWNER/REPO/tree/BRANCH/path/to/dir`.
 - For files, link to
