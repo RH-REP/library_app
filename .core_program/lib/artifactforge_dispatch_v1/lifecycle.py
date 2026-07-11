@@ -15,7 +15,7 @@ from .models import AgentMarker, IssueSnapshot, PendingRecord
 MARKER_RE = re.compile(r"<!--\s*codex-agent-v1:\s*(\{.*?\})\s*-->", re.DOTALL)
 ISSUE_NUMBER_RE = re.compile(r"^issue-(\d+)-")
 PENDING_FILENAME_RE = re.compile(r"_(?=(?:issue|step2|test)-)")
-FIELD_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_ -]*)\s*:\s*(.*?)\s*$")
+FIELD_RE = re.compile(r"^\s*-?\s*([A-Za-z_][A-Za-z0-9_ -]*)\s*:\s*(.*?)\s*$")
 
 VALID_MARKER_STATUSES = frozenset(
     {"done", "reassign_required", "authentication_blocked"}
@@ -290,6 +290,68 @@ def reconcile_pending_records(
             )
             continue
 
+        if marker.status == "reassign_required":
+            if marker.thread_id and pending.session_id == marker.thread_id:
+                destination = archive_destination(pending.path, archive_dir)
+                if dry_run:
+                    results.append(
+                        PendingLifecycleResult(
+                            pending=pending,
+                            marker=marker,
+                            action="archive",
+                            status=marker.status,
+                            moved=False,
+                            archive_path=str(destination),
+                            reassign_required=True,
+                            reason="reassign_required_marker",
+                        )
+                    )
+                    continue
+
+                try:
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    Path(pending.path).rename(destination)
+                except Exception as exc:
+                    results.append(
+                        PendingLifecycleResult(
+                            pending=pending,
+                            marker=marker,
+                            action="archive",
+                            status=marker.status,
+                            moved=False,
+                            archive_path=str(destination),
+                            reassign_required=True,
+                            reason="archive_failed",
+                            error=str(exc),
+                        )
+                    )
+                    continue
+
+                results.append(
+                    PendingLifecycleResult(
+                        pending=pending,
+                        marker=marker,
+                        action="archive",
+                        status=marker.status,
+                        moved=True,
+                        archive_path=str(destination),
+                        reassign_required=True,
+                        reason="reassign_required_marker",
+                    )
+                )
+                continue
+
+            results.append(
+                PendingLifecycleResult(
+                    pending=pending,
+                    marker=marker,
+                    action="keep_pending",
+                    status=marker.status,
+                    reason="reassign_handoff_pending",
+                )
+            )
+            continue
+
         if marker.status in PENDING_STATUSES:
             results.append(
                 PendingLifecycleResult(
@@ -362,6 +424,139 @@ def reconcile_pending_records(
         )
 
     return tuple(results)
+
+
+def unresolved_pending_issue_numbers(
+    results: Iterable[PendingLifecycleResult],
+) -> tuple[int, ...]:
+    numbers: list[int] = []
+    seen: set[int] = set()
+    for result in results:
+        if result.action != "keep_pending" or result.reason != "no_marker":
+            continue
+        issue_number = _issue_number_from_fingerprint(result.pending.trigger_fingerprint)
+        if issue_number is None or issue_number in seen:
+            continue
+        seen.add(issue_number)
+        numbers.append(issue_number)
+    return tuple(sorted(numbers))
+
+
+def reconcile_pending_with_issue_snapshots(
+    summary: PendingLifecycleSummary,
+    issues: Iterable[IssueSnapshot],
+    *,
+    archive_dir: str | Path | None = None,
+    dry_run: bool | None = None,
+) -> PendingLifecycleSummary:
+    issue_by_number = {issue.issue_number: issue for issue in issues}
+    if not issue_by_number:
+        return summary
+
+    marker_lookup = latest_marker_by_fingerprint(
+        collect_agent_markers_from_issues(issue_by_number.values())
+    )
+    target_archive_dir = archive_dir if archive_dir is not None else summary.archive_dir
+    target_dry_run = summary.dry_run if dry_run is None else dry_run
+    results: list[PendingLifecycleResult] = []
+
+    for result in summary.results:
+        if result.action != "keep_pending" or result.reason != "no_marker":
+            results.append(result)
+            continue
+
+        issue_number = _issue_number_from_fingerprint(result.pending.trigger_fingerprint)
+        issue = issue_by_number.get(issue_number) if issue_number is not None else None
+        if issue is None:
+            results.append(result)
+            continue
+
+        marker = marker_lookup.get(result.pending.trigger_fingerprint)
+        issue_state = (issue.issue_state or "").lower()
+        if marker is not None and marker.status in ARCHIVE_STATUSES:
+            reason = (
+                "done_marker_closed_issue"
+                if issue_state == "closed"
+                else "done_marker"
+            )
+            results.append(
+                _archive_pending_result(
+                    result.pending,
+                    marker,
+                    archive_dir=target_archive_dir,
+                    dry_run=target_dry_run,
+                    reason=reason,
+                )
+            )
+            continue
+
+        if issue_state == "closed":
+            results.append(
+                _archive_pending_result(
+                    result.pending,
+                    marker,
+                    archive_dir=target_archive_dir,
+                    dry_run=target_dry_run,
+                    reason="issue_closed_without_marker",
+                )
+            )
+            continue
+
+        results.append(result)
+
+    return PendingLifecycleSummary(
+        results=tuple(results),
+        pending_dir=summary.pending_dir,
+        archive_dir=str(Path(target_archive_dir)),
+        dry_run=target_dry_run,
+    )
+
+
+def _archive_pending_result(
+    pending: PendingRecord,
+    marker: AgentMarker | None,
+    *,
+    archive_dir: str | Path,
+    dry_run: bool,
+    reason: str,
+) -> PendingLifecycleResult:
+    destination = archive_destination(pending.path, archive_dir)
+    status = marker.status if marker is not None else None
+    if dry_run:
+        return PendingLifecycleResult(
+            pending=pending,
+            marker=marker,
+            action="archive",
+            status=status,
+            moved=False,
+            archive_path=str(destination),
+            reason=reason,
+        )
+
+    try:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        Path(pending.path).rename(destination)
+    except Exception as exc:
+        return PendingLifecycleResult(
+            pending=pending,
+            marker=marker,
+            action="archive",
+            status=status,
+            moved=False,
+            archive_path=str(destination),
+            reason="archive_failed",
+            error=str(exc),
+        )
+
+    return PendingLifecycleResult(
+        pending=pending,
+        marker=marker,
+        action="archive",
+        status=status,
+        moved=True,
+        archive_path=str(destination),
+        reason=reason,
+    )
 
 
 def reconcile_pending_from_issues(

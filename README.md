@@ -5,6 +5,7 @@ ArtifactForge は、GitHub issue に書いた相談から `goal.md` と
 リポジトリです。
 
 clone 後に自分の repository として使う手順は [USER_MANUAL.md](USER_MANUAL.md) を参照してください。
+通常ユーザーが読む文書は、この `README.md` と `USER_MANUAL.md` だけで十分です。
 
 ## 最初にすること
 
@@ -93,8 +94,9 @@ python3 .core_program/app/00_initialize_project/init_project.py --dry-run
 
 - `main_artifact/.goal_template.md`: `goal.md` 作成用の AI agent テンプレート
 - `main_artifact/.development_process_template.md`: `development_process.md` 作成用の AI agent テンプレート
+- `main_artifact/`: 完成品または統合された主成果物と、その目標・工程を置く場所
 - `main_artifact/goal.md`: AI agent が最初の issue から作る制作目標。個別 project のデータです
 - `main_artifact/development_process.md`: AI agent が最初の issue から作る工程。個別 project のデータです
-- `sub_artifact/`: worker が個別の制作単位を作る場所
+- `sub_artifact/`: 主成果物を完成・改善するための中間成果物、部品、調査、試作、補助作業の場所
 - `issue_log/`: issue ごとの判断や作業記録を残す場所
 - `.core_program/`: 内部エンジン用。通常は直接編集しません

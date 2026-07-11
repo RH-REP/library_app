@@ -65,6 +65,12 @@ class QueueRecord:
     previous_thread_id: str | None = None
     reassign_required: bool = False
 
+    @property
+    def recipient_role(self) -> str:
+        if self.prompt_kind in {"session_router", "router"}:
+            return "router"
+        return "worker"
+
 
 @dataclass(frozen=True)
 class PendingRecord:

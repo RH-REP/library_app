@@ -6,12 +6,14 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
+from unittest import mock
 
 
 LIB_DIR = Path(__file__).resolve().parents[2]
 if str(LIB_DIR) not in sys.path:
     sys.path.insert(0, str(LIB_DIR))
 
+from artifactforge_dispatch_v1 import dispatch as dispatch_module  # noqa: E402
 from artifactforge_dispatch_v1.comments import (  # noqa: E402
     CommentPostResult,
     append_marker_footer,
@@ -22,14 +24,21 @@ from artifactforge_dispatch_v1.dispatch import (  # noqa: E402
     DispatchError,
     assignment_session_id,
     bootstrap_session_router,
+    build_dispatch_prompt,
     build_session_router_bootstrap_prompt,
     build_session_router_prompt,
     build_worker_prompt,
+    claim_queue_file,
     discover_recent_codex_session_id,
+    dispatch_session_visibility,
+    dispatch_queue,
     dispatch_queue_file,
     launch_visible_codex_session,
     parse_bootstrap_session_id,
+    pending_destination,
     read_queue_record,
+    acquire_session_lock,
+    release_file_lock,
     validate_session_router_output,
     wait_for_assignment_session_id,
     write_queue_record,
@@ -130,18 +139,57 @@ class FakeCommentRunner:
         )
 
 
-def sample_record(*, prompt_kind: str = "worker", target_session_id: str = WORKER_SESSION_ID) -> QueueRecord:
+def sample_record(
+    *,
+    issue_number: int = 7,
+    prompt_kind: str = "worker",
+    target_session_id: str = WORKER_SESSION_ID,
+    trigger_fingerprint: str = "issue-7-body-sha256-abc123",
+) -> QueueRecord:
     return QueueRecord(
-        issue_number=7,
+        issue_number=issue_number,
         issue_url="https://github.com/example/project/issues/7",
         issue_title="first artifact",
         event_type="issue_body",
-        trigger_fingerprint="issue-7-body-sha256-abc123",
+        trigger_fingerprint=trigger_fingerprint,
         target_session_id=target_session_id,
         prompt_kind=prompt_kind,
         body="What do you want to build?\nA small web app",
         source_id=None,
         sub_artifact_path="sub_artifact/001_first_artifact",
+    )
+
+
+def write_assignment_state(
+    path: Path,
+    *,
+    router_session_id: str = ROUTER_SESSION_ID,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "router_session_id": router_session_id,
+                "next_sub_artifact_number": 1,
+                "assignments": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def write_pending_state(path: Path, records: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "records": records,
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
     )
 
 
@@ -155,6 +203,7 @@ class DispatchTest(unittest.TestCase):
 
             write_queue_record(queue_path, record)
             parsed = read_queue_record(queue_path)
+            dispatch_prompt = build_dispatch_prompt(parsed)
             worker_prompt = build_worker_prompt(parsed)
             router_prompt = build_session_router_prompt(
                 sample_record(prompt_kind="session_router", target_session_id=ROUTER_SESSION_ID)
@@ -165,17 +214,123 @@ class DispatchTest(unittest.TestCase):
             )
 
             self.assertEqual(parsed, record)
-            self.assertIn("# Worker v1", worker_prompt)
-            self.assertIn("WORKER_V1_INPUT", worker_prompt)
+            self.assertEqual("worker", parsed.recipient_role)
+            self.assertIn("ArtifactForge Dispatch Prompt v1", dispatch_prompt)
+            self.assertIn("issue thread update", dispatch_prompt)
+            self.assertIn("- recipient_role: worker", worker_prompt)
+            self.assertIn(f"- target_session_id: {WORKER_SESSION_ID}", worker_prompt)
+            self.assertIn("If your current session ID is not target_session_id", worker_prompt)
+            self.assertIn("DISPATCH_V1_INPUT", worker_prompt)
             self.assertIn("issue-7-body-sha256-abc123", worker_prompt)
-            self.assertIn("Post a human-visible GitHub issue comment", worker_prompt)
-            self.assertIn("Push committed work to the user's `origin` remote", worker_prompt)
+            self.assertIn('"recipient_role": "worker"', worker_prompt)
+            self.assertIn('"target_session_visibility": "non_visible"', worker_prompt)
+            self.assertIn('"human_gateway_contract"', worker_prompt)
+            self.assertIn('"router_is_only_human_permission_surface": true', worker_prompt)
+            self.assertIn('"worker_sessions_default_visibility": "non_visible"', worker_prompt)
+            self.assertIn('"subagent_sessions_default_visibility": "non_visible"', worker_prompt)
+            self.assertIn('"visible_child_session_requires_reason": true', worker_prompt)
+            self.assertIn('"permission_requests_must_go_through_router": true', worker_prompt)
+            self.assertIn(
+                '"router_existing_capabilities_may_be_granted_to_subagents": true',
+                worker_prompt,
+            )
+            self.assertIn(
+                '"new_or_broader_capabilities_require_user_approval": true',
+                worker_prompt,
+            )
+            self.assertIn('"target_thread_updates"', worker_prompt)
+            self.assertIn('"target_events"', worker_prompt)
+            self.assertIn('"worker_contract"', worker_prompt)
+            self.assertIn('"process_issue_thread_update": true', worker_prompt)
+            self.assertIn('"process_issue_event": true', worker_prompt)
+            self.assertIn(
+                '"may_spawn_subagents_for_minimal_implementation_and_verification_pairs": true',
+                worker_prompt,
+            )
+            self.assertIn('"pending_archive_owner": "python_fetch_reconcile"', worker_prompt)
+            self.assertIn('"worker_must_not_move_pending_to_archive": true', worker_prompt)
+            self.assertNotIn("mv .core_program/pending/xxx.md", worker_prompt)
             self.assertIn('"post_comment_required": true', worker_prompt)
+            self.assertIn(
+                '"repository_paths_must_be_clickable_github_links": true',
+                worker_prompt,
+            )
+            self.assertIn(
+                '"plain_backticked_repository_paths_are_not_sufficient": true',
+                worker_prompt,
+            )
+            self.assertIn(
+                '"directory_link_template": "https://github.com/OWNER/REPO/tree/BRANCH/path/to/dir"',
+                worker_prompt,
+            )
+            self.assertIn(
+                '"file_link_template": "https://github.com/OWNER/REPO/blob/BRANCH/path/to/file"',
+                worker_prompt,
+            )
+            self.assertIn(
+                '"rewrite_comment_before_posting_if_paths_are_not_clickable": true',
+                worker_prompt,
+            )
+            self.assertIn("追加したもの: flat bullet list of clickable links", worker_prompt)
             self.assertIn('"push_required": true', worker_prompt)
-            self.assertIn("# Session_router v1", router_prompt)
-            self.assertIn("SESSION_ROUTER_V1_INPUT", router_prompt)
+            self.assertIn("- recipient_role: router", router_prompt)
+            self.assertIn(f"- target_session_id: {ROUTER_SESSION_ID}", router_prompt)
+            self.assertIn('"recipient_role": "router"', router_prompt)
+            self.assertIn('"target_session_visibility": "visible"', router_prompt)
+            self.assertIn('"target_thread_updates"', router_prompt)
+            self.assertIn('"routing_contract"', router_prompt)
+            self.assertIn('"request_for_human_dir": ".core_program/request_for_human"', router_prompt)
+            self.assertIn('"check_request_for_human_empty_before_pending": true', router_prompt)
+            self.assertIn('"write_request_for_human_memo_before_user_question": true', router_prompt)
+            self.assertIn('"Pending fingerprints"', router_prompt)
+            self.assertIn('"pending_archive_owner": "python_fetch_reconcile"', router_prompt)
+            self.assertIn('"router_must_not_move_pending_to_archive": true', router_prompt)
+            self.assertIn('"do_not_reset_non_notify_pending_state": true', router_prompt)
+            self.assertNotIn("mv .core_program/pending/xxx.md", router_prompt)
+            self.assertIn('"router_posts_contract_violation_bug_report": true', router_prompt)
+            self.assertIn(
+                '"contract_violation_bug_report_default_status": "authentication_blocked"',
+                router_prompt,
+            )
+            self.assertIn(
+                '"contract_violation_bug_report_wrong_session_status": "reassign_required"',
+                router_prompt,
+            )
+            self.assertIn('"workers_may_be_non_visible": true', router_prompt)
+            self.assertIn('"subagents_may_be_non_visible": true', router_prompt)
+            self.assertIn('"worker_sessions_default_visibility": "non_visible"', router_prompt)
+            self.assertIn('"subagent_sessions_default_visibility": "non_visible"', router_prompt)
+            self.assertIn('"visible_child_session_requires_reason": true', router_prompt)
+            self.assertIn(
+                '"router_may_grant_existing_capabilities_to_subagents": true',
+                router_prompt,
+            )
+            self.assertIn("DISPATCH_V1_INPUT", router_prompt)
             self.assertIn("# Session_router bootstrap v1", bootstrap_prompt)
             self.assertIn("SESSION_ROUTER_BOOTSTRAP_V1_INPUT", bootstrap_prompt)
+
+    def test_reassign_router_prompt_avoids_previous_thread_id(self) -> None:
+        record = QueueRecord(
+            issue_number=7,
+            issue_url="https://github.com/example/project/issues/7",
+            issue_title="first artifact",
+            event_type="issue_body",
+            trigger_fingerprint="issue-7-body-sha256-abc123",
+            target_session_id=ROUTER_SESSION_ID,
+            prompt_kind="session_router",
+            body="wrong worker",
+            source_id=None,
+            sub_artifact_path="sub_artifact/001_first_artifact",
+            previous_thread_id=WORKER_SESSION_ID,
+            reassign_required=True,
+        )
+
+        prompt = build_session_router_prompt(record)
+
+        self.assertIn("- recipient_role: router", prompt)
+        self.assertIn(f'"previous_thread_id": "{WORKER_SESSION_ID}"', prompt)
+        self.assertIn('"avoid_previous_thread_id": true', prompt)
+        self.assertIn('"reassign_required": true', prompt)
 
     def test_bootstrap_session_router_starts_and_saves_new_router_id(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -424,11 +579,13 @@ class DispatchTest(unittest.TestCase):
                 wait_for_assignment_session_id(path, issue_number=7, timeout_seconds=0),
             )
 
-    def test_dispatch_existing_worker_moves_queue_to_pending(self) -> None:
+    def test_dispatch_legacy_worker_record_routes_to_router(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             queue_path = root / "queue" / "worker.md"
             pending_dir = root / "pending"
+            assignment_state = root / "assignment_state.json"
+            write_assignment_state(assignment_state)
             write_queue_record(queue_path, sample_record())
             runner = FakeCodexRunner()
 
@@ -436,17 +593,253 @@ class DispatchTest(unittest.TestCase):
                 queue_path,
                 runner=runner,
                 pending_dir=pending_dir,
+                assignment_state_path=assignment_state,
             )
 
             self.assertTrue(result.ok)
-            self.assertEqual(result.worker_session_id, WORKER_SESSION_ID)
+            self.assertEqual(result.router_session_id, ROUTER_SESSION_ID)
+            self.assertEqual(result.worker_session_id, ROUTER_SESSION_ID)
             self.assertTrue(result.queue_moved)
             self.assertFalse(queue_path.exists())
             self.assertTrue((pending_dir / "worker.md").exists())
-            self.assertEqual(runner.calls[0][0], "resume")
-            self.assertEqual(runner.calls[0][1], WORKER_SESSION_ID)
+            self.assertEqual(1, len(runner.calls))
+            self.assertEqual(runner.calls[0][0], "router")
+            self.assertEqual(runner.calls[0][1], ROUTER_SESSION_ID)
+            self.assertIn("- recipient_role: router", runner.calls[0][2])
+            self.assertIn('"source_recipient_role": "worker"', runner.calls[0][2])
+            self.assertIn(f'"source_target_session_id": "{WORKER_SESSION_ID}"', runner.calls[0][2])
+            self.assertIn("Read `.core_program/pending`", runner.calls[0][2])
 
-    def test_dispatch_router_validates_output_sends_worker_and_updates_assignment(self) -> None:
+    def test_dispatch_visibility_policy_keeps_router_as_only_visible_gateway(self) -> None:
+        self.assertEqual(
+            "visible",
+            dispatch_session_visibility(
+                sample_record(
+                    prompt_kind="session_router",
+                    target_session_id=ROUTER_SESSION_ID,
+                )
+            ),
+        )
+        self.assertEqual("non_visible", dispatch_session_visibility(sample_record()))
+
+    def test_default_worker_dispatch_uses_visible_router(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            queue_path = root / "queue" / "worker.md"
+            pending_dir = root / "pending"
+            assignment_state = root / "assignment_state.json"
+            write_assignment_state(assignment_state)
+            write_queue_record(queue_path, sample_record())
+            calls: list[tuple[tuple[str, ...], Any]] = []
+
+            def fake_default_runner(args: Any, input_text: Any) -> CommandResult:
+                calls.append((tuple(args), input_text))
+                return CommandResult(ok=True, args=tuple(args), returncode=0)
+
+            with mock.patch.object(
+                dispatch_module,
+                "_default_runner",
+                fake_default_runner,
+            ), mock.patch.object(
+                dispatch_module,
+                "launch_visible_codex_session",
+            ) as launch_visible:
+                result = dispatch_queue_file(
+                    queue_path,
+                    runner=dispatch_module._default_runner,
+                    repo_dir=root,
+                    pending_dir=pending_dir,
+                    assignment_state_path=assignment_state,
+                )
+
+        self.assertTrue(result.ok)
+        self.assertEqual("visible", result.plan.session_visibility)
+        self.assertEqual([], calls)
+        launch_visible.assert_called_once()
+        _, launch_kwargs = launch_visible.call_args
+        self.assertEqual(root, Path(launch_kwargs["repo_dir"]))
+        self.assertEqual(ROUTER_SESSION_ID, launch_kwargs["session_id"])
+        self.assertEqual(f"resume_{ROUTER_SESSION_ID}", launch_kwargs["role"])
+
+    def test_default_router_dispatch_uses_visible_session(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            queue_path = root / "queue" / "router.md"
+            pending_dir = root / "pending"
+            write_queue_record(
+                queue_path,
+                sample_record(
+                    prompt_kind="session_router",
+                    target_session_id=ROUTER_SESSION_ID,
+                ),
+            )
+
+            def fake_default_runner(args: Any, input_text: Any) -> CommandResult:
+                raise AssertionError("router dispatch must use visible launch")
+
+            with mock.patch.object(
+                dispatch_module,
+                "_default_runner",
+                fake_default_runner,
+            ), mock.patch.object(
+                dispatch_module,
+                "launch_visible_codex_session",
+                return_value=CommandResult(ok=True, args=("open",), returncode=0),
+            ) as launch_visible:
+                result = dispatch_queue_file(
+                    queue_path,
+                    runner=dispatch_module._default_runner,
+                    repo_dir=root,
+                    pending_dir=pending_dir,
+                )
+
+        self.assertTrue(result.ok)
+        self.assertEqual("visible", result.plan.session_visibility)
+        launch_visible.assert_called_once()
+        _, launch_kwargs = launch_visible.call_args
+        self.assertEqual(root, Path(launch_kwargs["repo_dir"]))
+        self.assertEqual(ROUTER_SESSION_ID, launch_kwargs["session_id"])
+        self.assertEqual(f"resume_{ROUTER_SESSION_ID}", launch_kwargs["role"])
+
+    def test_router_send_failure_restores_pending_to_queue(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            queue_path = root / "queue" / "worker.md"
+            pending_dir = root / "pending"
+            assignment_state = root / "assignment_state.json"
+            write_assignment_state(assignment_state)
+            write_queue_record(queue_path, sample_record())
+
+            class BlockedRouterRunner(FakeCodexRunner):
+                def run_session_router(
+                    self,
+                    prompt: str,
+                    *,
+                    router_session_id: str | None = None,
+                ) -> CommandResult:
+                    self.calls.append(("router", router_session_id, prompt))
+                    return CommandResult(
+                        ok=False,
+                        args=("codex", "resume", router_session_id or "", prompt),
+                        stderr="Error: stdout is not a terminal",
+                        returncode=1,
+                    )
+
+            runner = BlockedRouterRunner()
+
+            result = dispatch_queue_file(
+                queue_path,
+                runner=runner,
+                repo_dir=root,
+                pending_dir=pending_dir,
+                assignment_state_path=assignment_state,
+            )
+            queue_exists = queue_path.exists()
+            pending_files = sorted(pending_dir.glob("*.md")) if pending_dir.exists() else []
+
+        self.assertFalse(result.ok)
+        self.assertFalse(result.sent)
+        self.assertFalse(result.moved_to_pending)
+        self.assertEqual("visible", result.plan.session_visibility)
+        self.assertIn("stdout is not a terminal", result.error or "")
+        self.assertEqual(1, len(runner.calls))
+        self.assertTrue(queue_exists)
+        self.assertEqual([], pending_files)
+
+    def test_pending_destination_uses_flat_numeric_suffixes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            pending_dir = root / "pending"
+            pending_dir.mkdir()
+            queue_path = root / "queue" / "worker.md"
+            (pending_dir / "worker.md").write_text("one", encoding="utf-8")
+            (pending_dir / "worker.2.md").write_text("two", encoding="utf-8")
+            (pending_dir / "worker.3.md").write_text("three", encoding="utf-8")
+
+            destination = pending_destination(queue_path, pending_dir, WORKER_SESSION_ID)
+
+        self.assertEqual("worker.4.md", destination.name)
+
+    def test_dispatch_skips_stale_queue_when_fingerprint_is_pending(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            queue_path = root / "queue" / "worker.md"
+            pending_dir = root / "pending"
+            pending_dir.mkdir()
+            record = sample_record()
+            write_queue_record(queue_path, record)
+            pending_path = pending_dir / f"{WORKER_SESSION_ID}_{record.trigger_fingerprint}.md"
+            pending_path.write_text(
+                "# ArtifactForge Issue Event\n\n"
+                "## Routing\n"
+                f"- target_session_id: {WORKER_SESSION_ID}\n\n"
+                "## Issue Event\n"
+                f"- trigger_fingerprint: {record.trigger_fingerprint}\n",
+                encoding="utf-8",
+            )
+            runner = FakeCodexRunner()
+
+            result = dispatch_queue_file(
+                queue_path,
+                runner=runner,
+                pending_dir=pending_dir,
+            )
+            queue_exists = queue_path.exists()
+
+        self.assertTrue(result.skipped)
+        self.assertEqual("skipped", result.status)
+        self.assertEqual("fingerprint_already_pending", result.skip_reason)
+        self.assertFalse(result.sent)
+        self.assertEqual([], runner.calls)
+        self.assertTrue(queue_exists)
+
+    def test_dispatch_skips_reassign_queue_when_handoff_is_already_pending(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            queue_path = root / "queue" / "router.md"
+            pending_dir = root / "pending"
+            pending_dir.mkdir()
+            record = QueueRecord(
+                issue_number=7,
+                issue_url="https://github.com/example/project/issues/7",
+                issue_title="first artifact",
+                event_type="issue_body",
+                trigger_fingerprint="issue-7-body-sha256-abc123",
+                target_session_id=ROUTER_SESSION_ID,
+                prompt_kind="session_router",
+                body="wrong worker",
+                source_id=None,
+                sub_artifact_path="sub_artifact/001_first_artifact",
+                previous_thread_id=WORKER_SESSION_ID,
+                reassign_required=True,
+            )
+            write_queue_record(queue_path, record)
+            pending_path = pending_dir / f"{ROUTER_SESSION_ID}_{record.trigger_fingerprint}.md"
+            pending_path.write_text(
+                "# ArtifactForge Issue Event\n\n"
+                "## Routing\n"
+                f"- target_session_id: {ROUTER_SESSION_ID}\n\n"
+                "## Issue Event\n"
+                f"- trigger_fingerprint: {record.trigger_fingerprint}\n",
+                encoding="utf-8",
+            )
+            runner = FakeCodexRunner()
+
+            result = dispatch_queue_file(
+                queue_path,
+                runner=runner,
+                pending_dir=pending_dir,
+            )
+            queue_exists = queue_path.exists()
+
+        self.assertTrue(result.skipped)
+        self.assertEqual("skipped", result.status)
+        self.assertEqual("reassign_handoff_already_pending", result.skip_reason)
+        self.assertFalse(result.sent)
+        self.assertEqual([], runner.calls)
+        self.assertTrue(queue_exists)
+
+    def test_dispatch_router_sends_only_router_prompt_once(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             queue_path = root / "queue" / "router.md"
@@ -467,11 +860,404 @@ class DispatchTest(unittest.TestCase):
 
             self.assertTrue(result.ok)
             self.assertEqual(result.router_session_id, ROUTER_SESSION_ID)
-            self.assertEqual(result.worker_session_id, SELECTED_SESSION_ID)
-            self.assertEqual([call[0] for call in runner.calls], ["router", "resume"])
+            self.assertEqual(result.worker_session_id, ROUTER_SESSION_ID)
+            self.assertEqual([call[0] for call in runner.calls], ["router"])
+            self.assertEqual(runner.calls[0][1], ROUTER_SESSION_ID)
+            self.assertIn("- recipient_role: router", runner.calls[0][2])
+            self.assertIn('"recipient_role": "router"', runner.calls[0][2])
+            self.assertIn('"dispatcher_will_not_resume_worker_sessions": true', runner.calls[0][2])
             self.assertTrue((pending_dir / "router.md").exists())
-            state = json.loads(assignment_state.read_text(encoding="utf-8"))
-            self.assertEqual(state["assignments"][0]["session_id"], SELECTED_SESSION_ID)
+            self.assertFalse(assignment_state.exists())
+
+    def test_dispatch_queue_limit_processes_only_one_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            queue_dir = root / "queue"
+            pending_dir = root / "pending"
+            write_queue_record(
+                queue_dir / "001.md",
+                sample_record(
+                    issue_number=1,
+                    prompt_kind="session_router",
+                    target_session_id=ROUTER_SESSION_ID,
+                    trigger_fingerprint="issue-1-body-sha256-one",
+                ),
+            )
+            write_queue_record(
+                queue_dir / "002.md",
+                sample_record(
+                    issue_number=2,
+                    prompt_kind="session_router",
+                    target_session_id=ROUTER_SESSION_ID,
+                    trigger_fingerprint="issue-2-body-sha256-two",
+                ),
+            )
+            runner = FakeCodexRunner()
+
+            results = dispatch_queue(
+                queue_dir,
+                pending_dir=pending_dir,
+                runner=runner,
+                limit=1,
+            )
+
+            self.assertEqual(1, len(results))
+            self.assertEqual(1, len(runner.calls))
+            self.assertFalse((queue_dir / "001.md").exists())
+            self.assertTrue((queue_dir / "002.md").exists())
+            self.assertTrue((pending_dir / "001.md").exists())
+
+    def test_pending_worker_session_does_not_block_router_dispatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            queue_path = root / "queue" / "new.md"
+            pending_dir = root / "pending"
+            assignment_state = root / "assignment_state.json"
+            write_assignment_state(assignment_state)
+            write_queue_record(
+                pending_dir / "existing.md",
+                sample_record(
+                    trigger_fingerprint="issue-6-body-sha256-existing",
+                    target_session_id=WORKER_SESSION_ID,
+                ),
+            )
+            write_queue_record(
+                queue_path,
+                sample_record(
+                    trigger_fingerprint="issue-7-body-sha256-new",
+                    target_session_id=WORKER_SESSION_ID,
+                ),
+            )
+            runner = FakeCodexRunner()
+
+            result = dispatch_queue_file(
+                queue_path,
+                pending_dir=pending_dir,
+                runner=runner,
+                assignment_state_path=assignment_state,
+            )
+
+            self.assertTrue(result.sent)
+            self.assertEqual(ROUTER_SESSION_ID, result.router_session_id)
+            self.assertEqual(1, len(runner.calls))
+            self.assertFalse(queue_path.exists())
+
+    def test_router_session_is_deferred_when_router_pending_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            queue_path = root / "queue" / "router-new.md"
+            pending_dir = root / "pending"
+            write_queue_record(
+                pending_dir / "router-existing.md",
+                sample_record(
+                    prompt_kind="session_router",
+                    target_session_id=ROUTER_SESSION_ID,
+                    trigger_fingerprint="issue-8-body-sha256-existing",
+                ),
+            )
+            write_queue_record(
+                queue_path,
+                sample_record(
+                    prompt_kind="session_router",
+                    target_session_id=ROUTER_SESSION_ID,
+                    trigger_fingerprint="issue-9-body-sha256-new",
+                ),
+            )
+            runner = FakeCodexRunner()
+
+            result = dispatch_queue_file(
+                queue_path,
+                pending_dir=pending_dir,
+                runner=runner,
+            )
+
+            self.assertTrue(result.skipped)
+            self.assertEqual("session_has_unresolved_pending", result.skip_reason)
+            self.assertEqual([], runner.calls)
+            self.assertTrue(queue_path.exists())
+
+    def test_dispatch_skips_non_notify_pending_state_statuses(self) -> None:
+        for status in sorted(dispatch_module.PENDING_STATE_RENOTIFY_SKIP_STATUSES):
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                queue_path = root / "queue" / "stale.md"
+                pending_dir = root / "pending"
+                pending_state = root / "pending_state.json"
+                assignment_state = root / "assignment_state.json"
+                fingerprint = f"issue-7-body-sha256-{status}"
+                write_assignment_state(assignment_state)
+                write_queue_record(
+                    queue_path,
+                    sample_record(trigger_fingerprint=fingerprint),
+                )
+                write_pending_state(
+                    pending_state,
+                    [
+                        {
+                            "pending_path": str(pending_dir / "stale.md"),
+                            "trigger_fingerprint": fingerprint,
+                            "status": status,
+                            "worker_session_id": WORKER_SESSION_ID,
+                        }
+                    ],
+                )
+                runner = FakeCodexRunner()
+
+                result = dispatch_queue_file(
+                    queue_path,
+                    pending_dir=pending_dir,
+                    pending_state_path=pending_state,
+                    assignment_state_path=assignment_state,
+                    runner=runner,
+                )
+
+                self.assertTrue(result.skipped)
+                self.assertEqual(f"pending_state_{status}", result.skip_reason)
+                self.assertEqual([], runner.calls)
+                self.assertTrue(queue_path.exists())
+                state = json.loads(pending_state.read_text(encoding="utf-8"))
+                self.assertEqual(
+                    WORKER_SESSION_ID,
+                    state["records"][0]["worker_session_id"],
+                )
+
+    def test_dispatch_queue_does_not_renotify_dispatched_pending_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            queue_dir = root / "queue"
+            pending_dir = root / "pending"
+            pending_state = root / "pending_state.json"
+            assignment_state = root / "assignment_state.json"
+            fingerprint = "issue-31-thread-body-comment-sha256-d207"
+            write_assignment_state(assignment_state)
+            write_queue_record(
+                queue_dir / "031.md",
+                sample_record(
+                    issue_number=31,
+                    trigger_fingerprint=fingerprint,
+                    target_session_id=WORKER_SESSION_ID,
+                ),
+            )
+            write_pending_state(
+                pending_state,
+                [
+                    {
+                        "pending_path": str(pending_dir / "031.md"),
+                        "trigger_fingerprint": fingerprint,
+                        "status": "dispatched",
+                        "worker_session_id": WORKER_SESSION_ID,
+                    }
+                ],
+            )
+            runner = FakeCodexRunner()
+
+            results = dispatch_queue(
+                queue_dir,
+                pending_dir=pending_dir,
+                pending_state_path=pending_state,
+                assignment_state_path=assignment_state,
+                runner=runner,
+            )
+
+            self.assertEqual(1, len(results))
+            self.assertTrue(results[0].skipped)
+            self.assertEqual("pending_state_dispatched", results[0].skip_reason)
+            self.assertEqual([], runner.calls)
+            self.assertTrue((queue_dir / "031.md").exists())
+            self.assertFalse((pending_dir / "031.md").exists())
+
+    def test_dispatch_queue_batches_multiple_items_into_one_router_invocation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            queue_dir = root / "queue"
+            pending_dir = root / "pending"
+            write_queue_record(
+                queue_dir / "001.md",
+                sample_record(
+                    issue_number=1,
+                    prompt_kind="session_router",
+                    trigger_fingerprint="issue-1-body-sha256-one",
+                    target_session_id=ROUTER_SESSION_ID,
+                ),
+            )
+            write_queue_record(
+                queue_dir / "002.md",
+                sample_record(
+                    issue_number=2,
+                    prompt_kind="session_router",
+                    trigger_fingerprint="issue-2-body-sha256-two",
+                    target_session_id=ROUTER_SESSION_ID,
+                ),
+            )
+            runner = FakeCodexRunner()
+
+            results = dispatch_queue(
+                queue_dir,
+                pending_dir=pending_dir,
+                runner=runner,
+                parallel=2,
+            )
+            summary = dispatch_module.dispatch_results_to_dict(results)
+
+            self.assertEqual(2, len(results))
+            self.assertEqual(1, len(runner.calls))
+            self.assertEqual(0, summary["deferred_count"])
+            self.assertTrue(results[0].sent)
+            self.assertTrue(results[1].sent)
+            self.assertEqual("router", summary["items"][0]["recipient_role"])
+            self.assertEqual("router", summary["items"][1]["recipient_role"])
+            self.assertIn("SESSION_ROUTER_ORCHESTRATOR_V1_INPUT", runner.calls[0][2])
+            self.assertIn(".core_program/request_for_human", runner.calls[0][2])
+            self.assertIn('"check_request_for_human_empty_before_pending": true', runner.calls[0][2])
+            self.assertIn('"write_request_for_human_memo_before_user_question": true', runner.calls[0][2])
+            self.assertIn('"pending_archive_owner": "python_fetch_reconcile"', runner.calls[0][2])
+            self.assertIn('"router_must_not_move_pending_to_archive": true', runner.calls[0][2])
+            self.assertIn('"do_not_reset_non_notify_pending_state": true', runner.calls[0][2])
+            self.assertNotIn("mv .core_program/pending/xxx.md", runner.calls[0][2])
+            self.assertIn('"router_posts_contract_violation_bug_report": true', runner.calls[0][2])
+            self.assertIn(
+                '"contract_violation_bug_report_default_status": "authentication_blocked"',
+                runner.calls[0][2],
+            )
+            self.assertIn("issue-1-body-sha256-one", runner.calls[0][2])
+            self.assertIn("issue-2-body-sha256-two", runner.calls[0][2])
+            self.assertFalse((queue_dir / "001.md").exists())
+            self.assertFalse((queue_dir / "002.md").exists())
+            self.assertTrue((pending_dir / "001.md").exists())
+            self.assertTrue((pending_dir / "002.md").exists())
+
+    def test_dispatch_queue_batches_legacy_worker_records_to_router(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            queue_dir = root / "queue"
+            pending_dir = root / "pending"
+            assignment_state = root / "assignment_state.json"
+            write_assignment_state(assignment_state)
+            write_queue_record(
+                queue_dir / "001.md",
+                sample_record(
+                    issue_number=1,
+                    trigger_fingerprint="issue-1-body-sha256-one",
+                    target_session_id=WORKER_SESSION_ID,
+                ),
+            )
+            write_queue_record(
+                queue_dir / "002.md",
+                sample_record(
+                    issue_number=2,
+                    trigger_fingerprint="issue-2-body-sha256-two",
+                    target_session_id=SELECTED_SESSION_ID,
+                ),
+            )
+            runner = FakeCodexRunner()
+
+            results = dispatch_queue(
+                queue_dir,
+                pending_dir=pending_dir,
+                runner=runner,
+                assignment_state_path=assignment_state,
+            )
+
+            self.assertEqual(2, len(results))
+            self.assertEqual(1, len(runner.calls))
+            self.assertTrue(results[0].sent)
+            self.assertTrue(results[1].sent)
+            self.assertIn("SESSION_ROUTER_ORCHESTRATOR_V1_INPUT", runner.calls[0][2])
+            self.assertFalse((queue_dir / "001.md").exists())
+            self.assertFalse((queue_dir / "002.md").exists())
+            self.assertTrue((pending_dir / "001.md").exists())
+            self.assertTrue((pending_dir / "002.md").exists())
+            pending_text = (pending_dir / "001.md").read_text(encoding="utf-8")
+            self.assertIn("- recipient_role: router", pending_text)
+            self.assertIn(f"- target_session_id: {ROUTER_SESSION_ID}", pending_text)
+
+    def test_dispatch_queue_claims_to_inflight_then_pending(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            queue_dir = root / "queue"
+            inflight_dir = root / "inflight"
+            pending_dir = root / "pending"
+            locks_dir = root / "locks"
+            write_queue_record(
+                queue_dir / "001.md",
+                sample_record(
+                    prompt_kind="session_router",
+                    target_session_id=ROUTER_SESSION_ID,
+                ),
+            )
+            runner = FakeCodexRunner()
+
+            results = dispatch_queue(
+                queue_dir,
+                inflight_dir=inflight_dir,
+                pending_dir=pending_dir,
+                locks_dir=locks_dir,
+                runner=runner,
+            )
+
+            self.assertEqual(1, len(results))
+            self.assertTrue(results[0].sent)
+            self.assertFalse((queue_dir / "001.md").exists())
+            self.assertFalse((inflight_dir / "001.md").exists())
+            self.assertTrue((pending_dir / "001.md").exists())
+            self.assertEqual([], sorted(locks_dir.glob("*.lock")))
+
+    def test_dispatch_queue_restores_claim_when_session_lock_is_busy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            queue_dir = root / "queue"
+            inflight_dir = root / "inflight"
+            pending_dir = root / "pending"
+            locks_dir = root / "locks"
+            write_queue_record(
+                queue_dir / "001.md",
+                sample_record(
+                    prompt_kind="session_router",
+                    target_session_id=ROUTER_SESSION_ID,
+                ),
+            )
+            lock_path = acquire_session_lock(ROUTER_SESSION_ID, locks_dir=locks_dir)
+
+            try:
+                results = dispatch_queue(
+                    queue_dir,
+                    inflight_dir=inflight_dir,
+                    pending_dir=pending_dir,
+                    locks_dir=locks_dir,
+                    runner=FakeCodexRunner(),
+                    session_lock_timeout_seconds=0,
+                )
+            finally:
+                release_file_lock(lock_path)
+
+            self.assertEqual(1, len(results))
+            self.assertIn("lock already held", results[0].error or "")
+            self.assertTrue((queue_dir / "001.md").exists())
+            self.assertFalse((inflight_dir / "001.md").exists())
+            self.assertFalse((pending_dir / "001.md").exists())
+
+    def test_claim_queue_file_uses_unique_inflight_name(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            queue_file = root / "queue" / "001.md"
+            inflight_dir = root / "inflight"
+            locks_dir = root / "locks"
+            write_queue_record(queue_file, sample_record())
+            inflight_dir.mkdir(parents=True)
+            (inflight_dir / "001.md").write_text("existing", encoding="utf-8")
+
+            claim = claim_queue_file(
+                queue_file,
+                inflight_dir=inflight_dir,
+                locks_dir=locks_dir,
+            )
+
+            self.assertIsNotNone(claim)
+            assert claim is not None
+            self.assertEqual(inflight_dir / "001.2.md", claim.claimed_path)
+            self.assertFalse(queue_file.exists())
+            self.assertTrue((inflight_dir / "001.md").exists())
+            self.assertTrue((inflight_dir / "001.2.md").exists())
 
     def test_router_output_must_be_exactly_one_session_id_line(self) -> None:
         valid = validate_session_router_output(f"{SELECTED_SESSION_ID}\n")

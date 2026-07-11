@@ -16,6 +16,7 @@ if str(LIB_DIR) not in sys.path:
 from artifactforge_dispatch_v1.github_client import (  # noqa: E402
     GitHubFetchError,
     GitHubRepoInferenceError,
+    fetch_issues_by_number,
     fetch_open_issues,
     infer_repo_from_origin_remote,
     load_open_issues_snapshot,
@@ -31,52 +32,192 @@ class FakeGhRunner:
     def __call__(self, command: Sequence[str]) -> subprocess.CompletedProcess[str]:
         command_list = list(command)
         self.commands.append(command_list)
-        if command_list[:3] == ["gh", "issue", "list"]:
-            return subprocess.CompletedProcess(
-                command_list,
-                0,
-                stdout=json.dumps([{"number": 2}, {"number": 3}]),
-                stderr="",
-            )
-        if command_list[:3] == ["gh", "issue", "view"] and command_list[3] == "2":
+        if command_list[:3] == ["gh", "api", "graphql"]:
             return subprocess.CompletedProcess(
                 command_list,
                 0,
                 stdout=json.dumps(
                     {
-                        "number": 2,
-                        "state": "OPEN",
-                        "title": "Build first app",
-                        "url": "https://github.com/OWNER/REPO/issues/2",
-                        "body": "作りたいもの",
-                        "createdAt": "2026-07-10T00:00:00Z",
-                        "updatedAt": "2026-07-10T00:01:00Z",
-                        "comments": [
-                            {
-                                "databaseId": 55,
-                                "author": {"login": "rh"},
-                                "body": "追加要望",
-                                "createdAt": "2026-07-10T00:02:00Z",
-                                "updatedAt": "2026-07-10T00:03:00Z",
-                                "url": "https://github.com/OWNER/REPO/issues/2#issuecomment-55",
+                        "data": {
+                            "repository": {
+                                "issues": {
+                                    "pageInfo": {
+                                        "hasNextPage": False,
+                                        "endCursor": None,
+                                    },
+                                    "nodes": [
+                                        {
+                                            "number": 2,
+                                            "state": "OPEN",
+                                            "title": "Build first app",
+                                            "url": "https://github.com/OWNER/REPO/issues/2",
+                                            "body": "作りたいもの",
+                                            "createdAt": "2026-07-10T00:00:00Z",
+                                            "updatedAt": "2026-07-10T00:01:00Z",
+                                            "comments": {
+                                                "pageInfo": {
+                                                    "hasNextPage": False,
+                                                    "endCursor": None,
+                                                },
+                                                "nodes": [
+                                                    {
+                                                        "id": "IC_comment_55",
+                                                        "databaseId": 55,
+                                                        "author": {"login": "rh"},
+                                                        "body": "追加要望",
+                                                        "createdAt": "2026-07-10T00:02:00Z",
+                                                        "updatedAt": "2026-07-10T00:03:00Z",
+                                                        "url": "https://github.com/OWNER/REPO/issues/2#issuecomment-55",
+                                                    }
+                                                ],
+                                            },
+                                        }
+                                    ],
+                                }
                             }
-                        ],
+                        }
                     }
                 ),
                 stderr="",
             )
-        if command_list[:3] == ["gh", "issue", "view"] and command_list[3] == "3":
+        return subprocess.CompletedProcess(command_list, 1, stdout="", stderr="unexpected command")
+
+
+class PaginatedCommentRunner:
+    def __init__(self) -> None:
+        self.commands: list[list[str]] = []
+
+    def __call__(self, command: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        command_list = list(command)
+        self.commands.append(command_list)
+        if "number=2" in command_list:
             return subprocess.CompletedProcess(
                 command_list,
                 0,
                 stdout=json.dumps(
                     {
-                        "number": 3,
-                        "state": "CLOSED",
-                        "title": "Closed",
-                        "url": "https://github.com/OWNER/REPO/issues/3",
-                        "body": "done",
-                        "comments": [],
+                        "data": {
+                            "repository": {
+                                "issue": {
+                                    "comments": {
+                                        "pageInfo": {
+                                            "hasNextPage": False,
+                                            "endCursor": None,
+                                        },
+                                        "nodes": [
+                                            {
+                                                "id": "IC_comment_second_page",
+                                                "databaseId": 56,
+                                                "author": {"login": "rh"},
+                                                "body": "追加要望2",
+                                                "createdAt": "2026-07-10T00:04:00Z",
+                                                "updatedAt": "2026-07-10T00:05:00Z",
+                                                "url": "https://github.com/OWNER/REPO/issues/2#issuecomment-56",
+                                            }
+                                        ],
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ),
+                stderr="",
+            )
+        if command_list[:3] == ["gh", "api", "graphql"]:
+            return subprocess.CompletedProcess(
+                command_list,
+                0,
+                stdout=json.dumps(
+                    {
+                        "data": {
+                            "repository": {
+                                "issues": {
+                                    "pageInfo": {
+                                        "hasNextPage": False,
+                                        "endCursor": None,
+                                    },
+                                    "nodes": [
+                                        {
+                                            "number": 2,
+                                            "state": "OPEN",
+                                            "title": "Build first app",
+                                            "url": "https://github.com/OWNER/REPO/issues/2",
+                                            "body": "作りたいもの",
+                                            "createdAt": "2026-07-10T00:00:00Z",
+                                            "updatedAt": "2026-07-10T00:01:00Z",
+                                            "comments": {
+                                                "pageInfo": {
+                                                    "hasNextPage": True,
+                                                    "endCursor": "COMMENT_CURSOR",
+                                                },
+                                                "nodes": [
+                                                    {
+                                                        "id": "IC_comment_first_page",
+                                                        "databaseId": 55,
+                                                        "author": {"login": "rh"},
+                                                        "body": "追加要望",
+                                                        "createdAt": "2026-07-10T00:02:00Z",
+                                                        "updatedAt": "2026-07-10T00:03:00Z",
+                                                        "url": "https://github.com/OWNER/REPO/issues/2#issuecomment-55",
+                                                    }
+                                                ],
+                                            },
+                                        }
+                                    ],
+                                }
+                            }
+                        }
+                    }
+                ),
+                stderr="",
+            )
+        return subprocess.CompletedProcess(command_list, 1, stdout="", stderr="unexpected command")
+
+
+class IssueByNumberRunner:
+    def __init__(self) -> None:
+        self.commands: list[list[str]] = []
+
+    def __call__(self, command: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        command_list = list(command)
+        self.commands.append(command_list)
+        if command_list[:3] == ["gh", "api", "graphql"]:
+            return subprocess.CompletedProcess(
+                command_list,
+                0,
+                stdout=json.dumps(
+                    {
+                        "data": {
+                            "repository": {
+                                "issue_2": {
+                                    "number": 2,
+                                    "state": "CLOSED",
+                                    "title": "Closed work",
+                                    "url": "https://github.com/OWNER/REPO/issues/2",
+                                    "body": "done",
+                                    "createdAt": "2026-07-10T00:00:00Z",
+                                    "updatedAt": "2026-07-10T00:10:00Z",
+                                    "comments": {
+                                        "pageInfo": {
+                                            "hasNextPage": False,
+                                            "endCursor": None,
+                                        },
+                                        "nodes": [
+                                            {
+                                                "id": "IC_done",
+                                                "databaseId": 77,
+                                                "author": {"login": "codex"},
+                                                "body": "done marker",
+                                                "createdAt": "2026-07-10T00:09:00Z",
+                                                "updatedAt": "2026-07-10T00:09:00Z",
+                                                "url": "https://github.com/OWNER/REPO/issues/2#issuecomment-77",
+                                            }
+                                        ],
+                                    },
+                                },
+                                "issue_3": None,
+                            }
+                        }
                     }
                 ),
                 stderr="",
@@ -140,7 +281,7 @@ class GitHubClientTests(unittest.TestCase):
         with self.assertRaisesRegex(GitHubRepoInferenceError, "--repo OWNER/REPO"):
             infer_repo_from_origin_remote("/repo/root", runner=runner)
 
-    def test_fetch_open_issues_uses_gh_and_normalizes_comments(self) -> None:
+    def test_fetch_open_issues_uses_graphql_and_normalizes_comments(self) -> None:
         runner = FakeGhRunner()
 
         issues = fetch_open_issues("OWNER/REPO", limit=50, runner=runner)
@@ -148,12 +289,41 @@ class GitHubClientTests(unittest.TestCase):
         self.assertEqual(len(issues), 1)
         self.assertEqual(issues[0].issue_number, 2)
         self.assertEqual(issues[0].issue_state, "open")
-        self.assertEqual(issues[0].comments[0].comment_id, "55")
+        self.assertEqual(issues[0].comments[0].comment_id, "IC_comment_55")
         self.assertEqual(issues[0].comments[0].author, "rh")
-        self.assertIn("--repo", runner.commands[0])
-        self.assertIn("OWNER/REPO", runner.commands[0])
-        self.assertEqual(runner.commands[1][0:4], ["gh", "issue", "view", "2"])
-        self.assertEqual(runner.commands[2][0:4], ["gh", "issue", "view", "3"])
+        self.assertEqual(len(runner.commands), 1)
+        self.assertEqual(runner.commands[0][0:3], ["gh", "api", "graphql"])
+        self.assertIn("owner=OWNER", runner.commands[0])
+        self.assertIn("name=REPO", runner.commands[0])
+
+    def test_fetch_open_issues_fetches_additional_comment_pages(self) -> None:
+        runner = PaginatedCommentRunner()
+
+        issues = fetch_open_issues("OWNER/REPO", runner=runner)
+
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(
+            [comment.comment_id for comment in issues[0].comments],
+            ["IC_comment_first_page", "IC_comment_second_page"],
+        )
+        self.assertEqual(len(runner.commands), 2)
+        self.assertIn("number=2", runner.commands[1])
+        self.assertIn("commentCursor=COMMENT_CURSOR", runner.commands[1])
+
+    def test_fetch_issues_by_number_uses_graphql_aliases_for_open_or_closed(self) -> None:
+        runner = IssueByNumberRunner()
+
+        issues = fetch_issues_by_number("OWNER/REPO", (2, 3), runner=runner)
+
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(2, issues[0].issue_number)
+        self.assertEqual("closed", issues[0].issue_state)
+        self.assertEqual("IC_done", issues[0].comments[0].comment_id)
+        self.assertEqual(len(runner.commands), 1)
+        query_arg = next(arg for arg in runner.commands[0] if arg.startswith("query="))
+        self.assertIn("issue_2: issue(number: 2)", query_arg)
+        self.assertIn("issue_3: issue(number: 3)", query_arg)
+        self.assertNotIn("states: OPEN", query_arg)
 
     def test_fetch_raises_on_gh_error(self) -> None:
         def failing_runner(command: Sequence[str]) -> subprocess.CompletedProcess[str]:

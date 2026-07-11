@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from .lifecycle import iter_pending_records
 from .models import AgentMarker, IssueComment, IssueEvent, IssueSnapshot, QueueRecord
 
 
@@ -26,10 +27,14 @@ SLUG_RE = re.compile(r"[^A-Za-z0-9]+")
 MARKER_RE = re.compile(r"<!--\s*codex-agent-v1:\s*(\{.*?\})\s*-->", re.DOTALL)
 ISSUE_NUMBER_RE = re.compile(r"^issue-(\d+)-")
 SUB_ARTIFACT_NUMBER_RE = re.compile(r"(?:^|/)sub_artifact/(\d{3})_[^/]+")
-FINGERPRINT_IN_FILENAME_RE = re.compile(r"_(issue-\d+-(?:body|comment)-.+)$")
+FINGERPRINT_IN_FILENAME_RE = re.compile(r"_(issue-\d+-(?:body|comment|thread)-.+)$")
 FINGERPRINT_IN_TEXT_RE = re.compile(
     r"^\s*-?\s*trigger_fingerprint:\s*`?([^`\s]+)`?\s*$",
     re.MULTILINE,
+)
+THREAD_FINGERPRINT_RE = re.compile(
+    r"^issue-(?P<issue_number>\d+)-thread-"
+    r"(?P<first_source_id>[^-]+)-(?P<last_source_id>[^-]+)-sha256-(?P<digest>.+)$"
 )
 
 
@@ -43,10 +48,45 @@ class QueueFilePlan:
 
 
 @dataclass(frozen=True)
+class ThreadFingerprintMetadata:
+    issue_number: int
+    first_source_id: str
+    last_source_id: str
+
+
+@dataclass(frozen=True)
+class PendingSupersedePlan:
+    path: Path
+    trigger_fingerprint: str
+    replacement_trigger_fingerprint: str
+    issue_number: int
+    first_source_id: str
+    queue_path: Path
+
+
+@dataclass(frozen=True)
 class QueueFileResult:
     plan: QueueFilePlan
     written: bool
     reason: str | None = None
+    superseded_pending: tuple[PendingSupersedePlan, ...] = ()
+
+
+@dataclass(frozen=True)
+class PendingSupersedeResult:
+    plan: PendingSupersedePlan
+    deleted: bool
+    reason: str | None = None
+
+
+@dataclass(frozen=True)
+class ThreadSource:
+    source_id: str
+    heading: str
+    body: str
+    created_at: str | None = None
+    author: str | None = None
+    url: str | None = None
 
 
 class RouterSessionRequired(ValueError):
@@ -65,6 +105,32 @@ def comment_fingerprint(issue_number: int, comment_id: str, body: str) -> str:
     return f"issue-{issue_number}-comment-{comment_id}-sha256-{sha256_text(body)}"
 
 
+def thread_update_fingerprint(
+    issue_number: int,
+    first_source_id: str,
+    last_source_id: str,
+    body: str,
+) -> str:
+    return (
+        f"issue-{issue_number}-thread-"
+        f"{safe_filename_part(first_source_id)}-"
+        f"{safe_filename_part(last_source_id)}-sha256-{sha256_text(body)}"
+    )
+
+
+def parse_thread_fingerprint_metadata(
+    trigger_fingerprint: str,
+) -> ThreadFingerprintMetadata | None:
+    match = THREAD_FINGERPRINT_RE.match(trigger_fingerprint)
+    if match is None:
+        return None
+    return ThreadFingerprintMetadata(
+        issue_number=int(match.group("issue_number")),
+        first_source_id=match.group("first_source_id"),
+        last_source_id=match.group("last_source_id"),
+    )
+
+
 def safe_filename_part(value: str) -> str:
     cleaned = SAFE_FILENAME_RE.sub("_", value).strip("._")
     return cleaned or "EMPTY"
@@ -79,46 +145,124 @@ def collect_issue_events(issues: Iterable[IssueSnapshot]) -> tuple[IssueEvent, .
     for issue in sorted(issues, key=lambda value: value.issue_number):
         if issue.issue_state.lower() != "open":
             continue
-        if issue.body.strip():
-            events.append(
-                IssueEvent(
-                    issue_number=issue.issue_number,
-                    issue_url=issue.issue_url,
-                    issue_title=issue.title,
-                    event_type="issue_body",
-                    trigger_fingerprint=issue_body_fingerprint(
-                        issue.issue_number,
-                        issue.body,
-                    ),
-                    body=issue.body,
-                    source_url=issue.issue_url,
-                    created_at=issue.created_at,
-                )
-            )
-        for comment in sorted(
-            issue.comments,
-            key=lambda value: (_datetime_sort_key(value.created_at), value.comment_id),
-        ):
-            if is_ai_marker_comment(comment) or not comment.body.strip():
-                continue
-            events.append(
-                IssueEvent(
-                    issue_number=issue.issue_number,
-                    issue_url=issue.issue_url,
-                    issue_title=issue.title,
-                    event_type="comment",
-                    trigger_fingerprint=comment_fingerprint(
-                        issue.issue_number,
-                        comment.comment_id,
-                        comment.body,
-                    ),
-                    body=comment.body,
-                    source_id=comment.comment_id,
-                    source_url=comment.url or issue.issue_url,
-                    created_at=comment.created_at,
-                )
-            )
+        event = _thread_update_event(issue)
+        if event is not None:
+            events.append(event)
     return tuple(events)
+
+
+def _thread_update_event(issue: IssueSnapshot) -> IssueEvent | None:
+    comments = _sorted_comments(issue.comments)
+    marker_index = _latest_valid_marker_comment_index(issue.issue_number, comments)
+    sources: list[ThreadSource] = []
+
+    if marker_index is None and issue.body.strip():
+        sources.append(
+            ThreadSource(
+                source_id="body",
+                heading="Issue body",
+                body=issue.body,
+                created_at=issue.created_at,
+                url=issue.issue_url,
+            )
+        )
+
+    candidate_comments = (
+        comments if marker_index is None else comments[marker_index + 1 :]
+    )
+    for comment in candidate_comments:
+        if is_ai_marker_comment(comment) or not comment.body.strip():
+            continue
+        sources.append(
+            ThreadSource(
+                source_id=comment.comment_id,
+                heading=f"Comment {comment.comment_id}",
+                body=comment.body,
+                created_at=comment.created_at,
+                author=comment.author,
+                url=comment.url or issue.issue_url,
+            )
+        )
+
+    if not sources:
+        return None
+
+    body = _combined_thread_body(sources)
+    first_source_id = sources[0].source_id
+    last_source_id = sources[-1].source_id
+    source_id = (
+        first_source_id
+        if first_source_id == last_source_id
+        else f"{first_source_id}..{last_source_id}"
+    )
+    source_url = sources[-1].url or issue.issue_url
+    created_at = sources[-1].created_at or issue.updated_at or issue.created_at
+    return IssueEvent(
+        issue_number=issue.issue_number,
+        issue_url=issue.issue_url,
+        issue_title=issue.title,
+        event_type="thread_update",
+        trigger_fingerprint=thread_update_fingerprint(
+            issue.issue_number,
+            first_source_id,
+            last_source_id,
+            body,
+        ),
+        body=body,
+        source_id=source_id,
+        source_url=source_url,
+        created_at=created_at,
+    )
+
+
+def _sorted_comments(comments: Iterable[IssueComment]) -> tuple[IssueComment, ...]:
+    return tuple(
+        sorted(
+            comments,
+            key=lambda value: (_datetime_sort_key(value.created_at), value.comment_id),
+        )
+    )
+
+
+def _latest_valid_marker_comment_index(
+    issue_number: int,
+    comments: tuple[IssueComment, ...],
+) -> int | None:
+    latest_index = None
+    latest_key = None
+    for index, comment in enumerate(comments):
+        markers = parse_agent_markers(
+            comment.body,
+            fallback_issue_number=issue_number,
+            comment_id=comment.comment_id,
+            created_at=comment.created_at,
+        )
+        if not markers:
+            continue
+        key = (_datetime_sort_key(comment.created_at), comment.comment_id)
+        if latest_key is None or key >= latest_key:
+            latest_key = key
+            latest_index = index
+    return latest_index
+
+
+def _combined_thread_body(sources: Iterable[ThreadSource]) -> str:
+    return "\n\n".join(_thread_source_block(source) for source in sources)
+
+
+def _thread_source_block(source: ThreadSource) -> str:
+    lines = [
+        f"## {source.heading}",
+        f"- source_id: {source.source_id}",
+    ]
+    if source.created_at:
+        lines.append(f"- created_at: {source.created_at}")
+    if source.author:
+        lines.append(f"- author: {source.author}")
+    if source.url:
+        lines.append(f"- url: {source.url}")
+    lines.extend(["", source.body.strip()])
+    return "\n".join(lines)
 
 
 def parse_agent_markers(
@@ -204,6 +348,7 @@ def build_queue_records(
         pending_fingerprints,
         collect_existing_fingerprints(pending_dir) if pending_dir is not None else (),
     )
+    pending_sessions = _pending_sessions_by_fingerprint(pending_dir)
     archive_index = _fingerprint_index(
         archive_fingerprints,
         collect_existing_fingerprints(archive_dir) if archive_dir is not None else (),
@@ -220,6 +365,13 @@ def build_queue_records(
             continue
 
         reassign_required = marker is not None and marker.status in REASSIGN_STATUSES
+        previous_thread_id = marker.thread_id if marker is not None else None
+        if reassign_required and _reassign_handoff_pending_exists(
+            pending_sessions,
+            event.trigger_fingerprint,
+            previous_thread_id,
+        ):
+            continue
         if not reassign_required and _fingerprint_present(
             pending_index,
             event.trigger_fingerprint,
@@ -229,24 +381,17 @@ def build_queue_records(
             continue
 
         assignment = active_assignment_for_issue(assignment_state, event.issue_number)
-        if reassign_required or assignment is None:
-            target_session_id = _router_session_id(assignment_state)
-            prompt_kind = "session_router"
-            previous_thread_id = marker.thread_id if marker is not None else None
-            sub_artifact_path = (
-                _optional_str(assignment.get("sub_artifact_path"))
-                if assignment is not None
-                else planned_sub_artifacts.get(event.issue_number)
-            )
-            if sub_artifact_path is None:
-                sub_artifact_path = planned_sub_artifact_path(event, next_number)
-                planned_sub_artifacts[event.issue_number] = sub_artifact_path
-                next_number += 1
-        else:
-            target_session_id = str(assignment["session_id"])
-            prompt_kind = "worker"
-            previous_thread_id = None
-            sub_artifact_path = _optional_str(assignment.get("sub_artifact_path"))
+        target_session_id = _router_session_id(assignment_state)
+        prompt_kind = "session_router"
+        sub_artifact_path = (
+            _optional_str(assignment.get("sub_artifact_path"))
+            if assignment is not None
+            else planned_sub_artifacts.get(event.issue_number)
+        )
+        if sub_artifact_path is None:
+            sub_artifact_path = planned_sub_artifact_path(event, next_number)
+            planned_sub_artifacts[event.issue_number] = sub_artifact_path
+            next_number += 1
 
         records.append(
             QueueRecord(
@@ -279,8 +424,6 @@ def active_assignment_for_issue(
         if assigned_issue_number != issue_number:
             continue
         if str(assignment.get("status", "active")) != "active":
-            continue
-        if not str(assignment.get("session_id", "")).strip():
             continue
         return assignment
     return None
@@ -331,6 +474,7 @@ def build_queue_markdown(record: QueueRecord) -> str:
         "",
         "## Routing",
         f"- prompt_kind: {record.prompt_kind}",
+        f"- recipient_role: {record.recipient_role}",
         f"- target_session_id: {record.target_session_id}",
         f"- reassign_required: {_bool_text(record.reassign_required)}",
     ]
@@ -395,6 +539,7 @@ def write_queue_files(
     records: Iterable[QueueRecord],
     *,
     queue_dir: str | Path,
+    pending_dir: str | Path | None = None,
     dry_run: bool = False,
     overwrite: bool = False,
 ) -> tuple[QueueFileResult, ...]:
@@ -406,6 +551,10 @@ def write_queue_files(
                 plan=plan,
                 written=False,
                 reason=plan.reason or "dry_run",
+                superseded_pending=_superseded_pending_for_plan(
+                    plan,
+                    pending_dir=pending_dir,
+                ),
             )
             for plan in plans
         )
@@ -418,8 +567,65 @@ def write_queue_files(
             continue
         plan.path.parent.mkdir(parents=True, exist_ok=True)
         plan.path.write_text(plan.content, encoding="utf-8")
-        results.append(QueueFileResult(plan=plan, written=True))
+        results.append(
+            QueueFileResult(
+                plan=plan,
+                written=True,
+                superseded_pending=_superseded_pending_for_plan(
+                    plan,
+                    pending_dir=pending_dir,
+                ),
+            )
+        )
     return tuple(results)
+
+
+def delete_superseded_pending_files(
+    results: Iterable[QueueFileResult],
+    *,
+    dry_run: bool = False,
+) -> tuple[PendingSupersedeResult, ...]:
+    supersede_results: list[PendingSupersedeResult] = []
+    seen_paths: set[Path] = set()
+    for result in results:
+        for supersede_plan in result.superseded_pending:
+            path = supersede_plan.path
+            if path in seen_paths:
+                continue
+            seen_paths.add(path)
+            if dry_run:
+                supersede_results.append(
+                    PendingSupersedeResult(
+                        plan=supersede_plan,
+                        deleted=False,
+                        reason="dry_run",
+                    )
+                )
+                continue
+            if not result.written:
+                supersede_results.append(
+                    PendingSupersedeResult(
+                        plan=supersede_plan,
+                        deleted=False,
+                        reason="queue_not_written",
+                    )
+                )
+                continue
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                supersede_results.append(
+                    PendingSupersedeResult(
+                        plan=supersede_plan,
+                        deleted=False,
+                        reason="missing",
+                    )
+                )
+            else:
+                supersede_results.append(
+                    PendingSupersedeResult(plan=supersede_plan, deleted=True)
+                )
+    return tuple(supersede_results)
 
 
 def collect_existing_fingerprints(path: str | Path | None) -> frozenset[str]:
@@ -477,6 +683,85 @@ def _fingerprint_index(*groups: Iterable[str]) -> frozenset[str]:
 
 def _fingerprint_present(index: frozenset[str], fingerprint: str) -> bool:
     return fingerprint in index or safe_filename_part(fingerprint) in index
+
+
+def _pending_sessions_by_fingerprint(path: str | Path | None) -> dict[str, set[str]]:
+    if path is None:
+        return {}
+
+    sessions: dict[str, set[str]] = {}
+    for record in iter_pending_records(path):
+        for fingerprint in (
+            record.trigger_fingerprint,
+            safe_filename_part(record.trigger_fingerprint),
+        ):
+            sessions.setdefault(fingerprint, set()).add(record.session_id)
+    return sessions
+
+
+def _pending_sessions_for(
+    sessions_by_fingerprint: dict[str, set[str]],
+    fingerprint: str,
+) -> set[str]:
+    sessions = set(sessions_by_fingerprint.get(fingerprint, set()))
+    sessions.update(sessions_by_fingerprint.get(safe_filename_part(fingerprint), set()))
+    return sessions
+
+
+def _reassign_handoff_pending_exists(
+    sessions_by_fingerprint: dict[str, set[str]],
+    fingerprint: str,
+    previous_thread_id: str | None,
+) -> bool:
+    sessions = _pending_sessions_for(sessions_by_fingerprint, fingerprint)
+    if not sessions:
+        return False
+    if not previous_thread_id:
+        return True
+    return any(session_id != previous_thread_id for session_id in sessions)
+
+
+def _superseded_pending_for_plan(
+    plan: QueueFilePlan,
+    *,
+    pending_dir: str | Path | None,
+) -> tuple[PendingSupersedePlan, ...]:
+    if pending_dir is None or plan.action != "create" or plan.record.reassign_required:
+        return ()
+
+    replacement = parse_thread_fingerprint_metadata(
+        plan.record.trigger_fingerprint
+    )
+    if replacement is None:
+        return ()
+
+    superseded: list[PendingSupersedePlan] = []
+    replacement_fingerprint = plan.record.trigger_fingerprint
+    replacement_safe = safe_filename_part(replacement_fingerprint)
+    for pending in iter_pending_records(pending_dir):
+        pending_fingerprint = pending.trigger_fingerprint
+        if pending_fingerprint == replacement_fingerprint:
+            continue
+        if safe_filename_part(pending_fingerprint) == replacement_safe:
+            continue
+        pending_metadata = parse_thread_fingerprint_metadata(pending_fingerprint)
+        if pending_metadata is None:
+            continue
+        if pending_metadata.issue_number != replacement.issue_number:
+            continue
+        if pending_metadata.first_source_id != replacement.first_source_id:
+            continue
+        superseded.append(
+            PendingSupersedePlan(
+                path=Path(pending.path),
+                trigger_fingerprint=pending_fingerprint,
+                replacement_trigger_fingerprint=replacement_fingerprint,
+                issue_number=replacement.issue_number,
+                first_source_id=replacement.first_source_id,
+                queue_path=plan.path,
+            )
+        )
+    return tuple(superseded)
 
 
 def _fingerprints_from_file(path: Path) -> set[str]:

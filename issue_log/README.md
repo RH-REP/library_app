@@ -1,6 +1,9 @@
-# issue_log Contract
+# issue_log
 
 `issue_log/` is the only user-facing issue-work log name in ArtifactForge.
+This README is a short entry note for people or AI agents who open this
+directory directly. Human users normally read the root `README.md` and
+`USER_MANUAL.md` only.
 
 It owns human-readable notes about issue-driven work, review gates, and
 operator decisions that should remain understandable without opening

@@ -9,10 +9,11 @@ Bootstrap task:
   `router_session_id: null`.
 - Read `.core_program/assignment_state.json` as the canonical ArtifactForge
   issue-to-session-to-sub-artifact assignment state.
-- Read `.core_program/prompts/session_router_v1.md` as the normal routing
-  contract that will govern future routing prompts.
+- Read `.core_program/prompts/dispatch_v1.md` and
+  `.core_program/prompts/session_router_v1.md` as the routing contracts that
+  will govern future router-role dispatch prompts.
 - Do not perform worker work.
-- Do not write a worker prompt.
+- Do not write a worker prompt during bootstrap.
 - Do not post a GitHub comment.
 - Do not create, modify, or route `main_artifact/`, `sub_artifact/`, or
   `issue_log/` content during bootstrap.
@@ -43,7 +44,7 @@ SESSION_ROUTER_READY
 
 Normal routing output contract:
 - For future normal routing prompts governed by
-  `.core_program/prompts/session_router_v1.md`, the external stdout contract is
+  `.core_program/prompts/dispatch_v1.md`, the external stdout contract is
   exactly one worker session ID line only.
 - Normal routing output must not contain `SESSION_ROUTER_READY`, JSON, reasons,
   confidence, prose, Markdown, labels, or extra lines.

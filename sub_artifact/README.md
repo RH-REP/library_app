@@ -1,6 +1,11 @@
-# sub_artifact Contract
+# sub_artifact
 
-`sub_artifact/` contains worker-owned production units.
+`sub_artifact/` contains intermediate outputs, parts, investigations,
+prototypes, and helper work used to complete or improve the primary artifact in
+`main_artifact/`.
+This README is a short entry note for people or AI agents who open this
+directory directly. Human users normally read the root `README.md` and
+`USER_MANUAL.md` only.
 
 Workers create numbered sub-artifact directories on first real work:
 

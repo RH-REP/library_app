@@ -287,17 +287,8 @@ class IntegrationFlowTest(unittest.TestCase):
         )
         lifecycle = dry_run.pending_lifecycle(pending_entries, markers)
 
-        self.assertEqual({None, "user-comment-1"}, {event.source_id for event in events})
-        self.assertEqual(
-            {
-                body_fingerprint: "skip_done",
-                comment_fingerprint: "skip_pending",
-            },
-            {
-                entry["trigger_fingerprint"]: entry["planned_action"]
-                for entry in queue_entries
-            },
-        )
+        self.assertEqual((), events)
+        self.assertEqual([], queue_entries)
         self.assertEqual("pending_reassign_required", lifecycle[0]["planned_state"])
 
 
