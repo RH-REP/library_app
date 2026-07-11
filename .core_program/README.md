@@ -1,6 +1,9 @@
 # .core_program Contract
 
 `.core_program/` contains the internal engine boundary for ArtifactForge.
+This README is an entry note for AI agents, maintainers, and operators who open
+the internal engine directory directly. Human users normally read the root
+`README.md` and `USER_MANUAL.md` only.
 
 It owns machine-facing records only:
 
@@ -21,6 +24,7 @@ It must not own user-facing artifact content. User-facing work belongs under
 ├── README.md
 ├── prompts/
 │   ├── session_router_bootstrap_v1.md
+│   ├── dispatch_v1.md
 │   ├── session_router_v1.md
 │   └── worker_v1.md
 ├── app/
@@ -74,23 +78,20 @@ here by `assignment_state.json`.
 The prompt source files are:
 
 ```text
+.core_program/prompts/dispatch_v1.md
 .core_program/prompts/session_router_v1.md
 .core_program/prompts/session_router_bootstrap_v1.md
 .core_program/prompts/worker_v1.md
 ```
 
-`Session_router` routes only. It does not do worker work. The bootstrap prompt
-starts the first visible Session_router when `assignment_state.json` has
-`router_session_id: null`; its expected response is exactly
-`SESSION_ROUTER_READY`. The CLI caller launches bootstrap in a visible Terminal
-session, discovers the started session ID from local Codex session records, and
-saves it to `assignment_state.json`. Normal routing uses
-`session_router_v1.md`, and its stdout contract remains exactly one session ID
-line when a non-terminal adapter is used.
+Normal queue dispatch uses `dispatch_v1.md`. Every queue file is sent to
+`queue.target_session_id` exactly once. The prompt declares `recipient_role:
+worker` or `recipient_role: router` and the target session ID at the top.
 
-`Worker` does the assigned work, commits and pushes repository changes to
-`origin`, and posts a human-visible GitHub issue comment. The final line of the
-posted comment must contain a `codex-agent-v1` marker. The only v1 statuses are:
+`recipient_role: worker` performs the assigned work, commits and pushes
+repository changes to `origin`, and posts a human-visible GitHub issue comment.
+The final line of the posted comment must contain a `codex-agent-v1` marker. The
+only v1 statuses are:
 
 ```text
 done
@@ -98,18 +99,31 @@ reassign_required
 authentication_blocked
 ```
 
+`recipient_role: router` routes only. It does not do worker implementation work.
+It reads `assignment_state.json`, prefers existing workers, avoids
+`previous_thread_id` on `reassign_required`, starts a new visible worker only
+when no existing worker accepts, sends the worker-mode dispatch prompt exactly
+once, updates `assignment_state.json`, and outputs exactly one worker session ID
+line.
+
+The bootstrap prompt starts the first visible Session_router when
+`assignment_state.json` has `router_session_id: null`; its expected response is
+exactly `SESSION_ROUTER_READY`. The CLI caller launches bootstrap in a visible
+Terminal session, discovers the started session ID from local Codex session
+records, and saves it to `assignment_state.json`.
+
 ## Output Rule
 
 `Session_router` stdout is a protocol surface. Bootstrap stdout must contain
 exactly `SESSION_ROUTER_READY`; normal routing stdout must contain exactly one
-session ID line and nothing else.
+worker session ID line and nothing else.
 
 All diagnostics must go to internal logs, stderr, or operator summaries.
 
 ## Pending Rule
 
-Dispatch does not wait for completion. After a worker prompt is sent, the event
-is moved to pending. Later issue fetches inspect GitHub markers and decide
+Dispatch does not wait for completion. After a dispatch prompt is sent, the
+event is moved to pending. Later issue fetches inspect GitHub markers and decide
 whether pending records stay pending, move to archive, or require human action.
 
 Pending records must distinguish router pending from worker pending.
@@ -162,11 +176,13 @@ python3 .core_program/app/01_fetch_issue/run_issue_queue.py --router-session-id 
 The provided `SESSION_ID` is saved to `.core_program/assignment_state.json` and
 reused by later runs.
 
-The second command sends queued prompts to visible Codex sessions through
-Terminal launch scripts. In normal execution, successful dispatch moves queue
-files to pending. The dispatcher itself does not post comments; the worker
-prompt requires the visible worker session to commit, push to `origin`, and post
-the final GitHub issue comment with the marker footer.
+The second command sends queued dispatch prompts to visible Codex sessions
+through Terminal launch scripts. In normal execution, successful dispatch moves
+queue files to pending. The dispatcher sends one prompt to `target_session_id`
+and does not send an additional worker prompt after router output. The
+dispatcher itself does not post comments; the worker-role prompt requires the
+visible worker session to commit, push to `origin`, and post the final GitHub
+issue comment with the marker footer.
 
 ## Project Initialization
 

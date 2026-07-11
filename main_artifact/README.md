@@ -1,6 +1,8 @@
 # main_artifact
 
-`main_artifact/` は、このプロジェクトの制作目標と工程を置く場所です。
+`main_artifact/` は、完成品または統合された主成果物と、その目標・工程の正本を置く場所です。
+この README は、このフォルダを開いた人・AI agent 向けの短い入口説明です。
+通常ユーザーの必読文書は root の `README.md` と `USER_MANUAL.md` です。
 
 ユーザーは、まず GitHub issue に「何を作りたいか」を書きます。
 その issue を読んだ AI agent が、次の2つを作成・更新します。
