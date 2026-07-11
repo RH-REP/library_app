@@ -75,6 +75,13 @@ Prefer Markdown links whose label is the repository path itself.
 In `追加したもの:`, make every repository path bullet a clickable Markdown link.
 If the final issue comment still contains repository paths without clickable GitHub
 links, rewrite the comment before posting.
+HTML example:
+
+- Directory:
+  - <a href="https://github.com/OWNER/REPO/tree/BRANCH/sub_artifact/005_multiformat_text_extraction">sub_artifact/005_multiformat_text_extraction/</a>
+- File:
+  - <a href="https://github.com/OWNER/REPO/blob/BRANCH/sub_artifact/005_multiformat_text_extraction/artifact.md">sub_artifact/005_multiformat_text_extraction/artifact.md</a>
+  - <a href="https://github.com/OWNER/REPO/tree/BRANCH/sub_artifact/005_multiformat_text_extraction">sub_artifact/005_multiformat_text_extraction/ に今回の整理をまとめました</a>
 - Preferred final comment shape:
   1. Short completion line, such as `Issue #ISSUE_NUMBER 対応しました。`
   2. One sentence linking the main sub-artifact directory.
