@@ -77,6 +77,38 @@ def _write_issue_snapshots(
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
+def _write_thread_update_issue_snapshots(path: Path) -> None:
+    payload = {
+        "issues": [
+            {
+                "issue_number": 12,
+                "issue_state": "open",
+                "issue_url": "https://example.invalid/issues/12",
+                "title": "Combined issue thread",
+                "body": "Initial request",
+                "created_at": "2026-07-10T00:00:00+00:00",
+                "comments": [
+                    {
+                        "comment_id": "C12A",
+                        "author": "user",
+                        "body": "First follow-up",
+                        "created_at": "2026-07-10T00:01:00+00:00",
+                        "url": "https://example.invalid/comments/C12A",
+                    },
+                    {
+                        "comment_id": "C12B",
+                        "author": "user",
+                        "body": "Second follow-up",
+                        "created_at": "2026-07-10T00:02:00+00:00",
+                        "url": "https://example.invalid/comments/C12B",
+                    },
+                ],
+            }
+        ]
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
 def _dry_run_args(root: Path, assignment_state: Path, issues: Path):
     return [
         "--dry-run",
@@ -456,6 +488,34 @@ class RunIssueQueueTests(unittest.TestCase):
         )
         self.assertNotIn("router_session_id", state)
 
+    def test_dry_run_summary_combines_body_and_comments_into_one_queue_record(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            assignment_state = root / "assignment_state.json"
+            issues = root / "issues.json"
+            _write_assignment_state(assignment_state)
+            _write_thread_update_issue_snapshots(issues)
+
+            with mock.patch.object(
+                run_issue_queue,
+                "bootstrap_session_router",
+            ) as bootstrap_session_router, mock.patch(
+                "sys.stdout",
+                new_callable=io.StringIO,
+            ) as stdout:
+                exit_code = run_issue_queue.main(
+                    _dry_run_args(root, assignment_state, issues) + ["--compact"]
+                )
+                summary = json.loads(stdout.getvalue())
+
+        self.assertEqual(0, exit_code)
+        bootstrap_session_router.assert_not_called()
+        self.assertEqual(1, summary["queue"]["queue_result_count"])
+        item = summary["queue"]["items"][0]
+        self.assertEqual("thread_update", item["event_type"])
+        self.assertEqual("body..C12B", item["source_id"])
+        self.assertTrue(item["trigger_fingerprint"].startswith("issue-12-thread-body-C12B-"))
+
     def test_missing_router_id_real_run_bootstraps_and_uses_new_router_id(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -603,7 +663,7 @@ class RunIssueQueueTests(unittest.TestCase):
                 "items": [
                     {
                         "action": "skip",
-                        "event_type": "comment",
+                        "event_type": "thread_update",
                         "issue_number": 2,
                         "issue_title": "Demo screen",
                         "prompt_kind": "worker",
@@ -618,9 +678,9 @@ class RunIssueQueueTests(unittest.TestCase):
 
         text = run_issue_queue.human_summary(summary)
 
-        self.assertIn("Found new body/comment (0)", text)
+        self.assertIn("Found new issue thread update (0)", text)
         self.assertIn("already queued (1)", text)
-        self.assertIn("#2 comment: Demo screen -> worker", text)
+        self.assertIn("#2 thread: Demo screen -> worker", text)
         self.assertIn("pending (0)", text)
 
     def test_human_summary_lists_pending_requeue_commands(self) -> None:

@@ -1,12 +1,13 @@
 # Dispatch v1 Contract
 
 Role rules:
-- If `recipient_role` is `worker`, process the supplied issue event as the assigned worker.
-- If `recipient_role` is `router`, route the supplied issue event and hand it off to exactly one correct worker.
+- If `recipient_role` is `worker`, process the supplied issue thread update as the assigned worker.
+- If `recipient_role` is `router`, route the supplied issue thread update and hand it off to exactly one correct worker.
 - If the current Codex session ID is not `target_session_id`, do not perform the work.
 
 Worker role:
 - Perform the requested project work in the assigned ArtifactForge repository.
+- Treat the supplied issue body/comment range as one combined thread update.
 - Read `main_artifact/goal.md` and `main_artifact/development_process.md` when they exist.
 - If this is the first real work for a new assignment, initialize one `sub_artifact/NNN_slug/` directory.
 - The standard first-work file set is `sub_goal.md`, `plan.md`, `work_log.md`, and `artifact.md`.

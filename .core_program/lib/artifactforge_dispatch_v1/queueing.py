@@ -27,7 +27,7 @@ SLUG_RE = re.compile(r"[^A-Za-z0-9]+")
 MARKER_RE = re.compile(r"<!--\s*codex-agent-v1:\s*(\{.*?\})\s*-->", re.DOTALL)
 ISSUE_NUMBER_RE = re.compile(r"^issue-(\d+)-")
 SUB_ARTIFACT_NUMBER_RE = re.compile(r"(?:^|/)sub_artifact/(\d{3})_[^/]+")
-FINGERPRINT_IN_FILENAME_RE = re.compile(r"_(issue-\d+-(?:body|comment)-.+)$")
+FINGERPRINT_IN_FILENAME_RE = re.compile(r"_(issue-\d+-(?:body|comment|thread)-.+)$")
 FINGERPRINT_IN_TEXT_RE = re.compile(
     r"^\s*-?\s*trigger_fingerprint:\s*`?([^`\s]+)`?\s*$",
     re.MULTILINE,
@@ -50,6 +50,16 @@ class QueueFileResult:
     reason: str | None = None
 
 
+@dataclass(frozen=True)
+class ThreadSource:
+    source_id: str
+    heading: str
+    body: str
+    created_at: str | None = None
+    author: str | None = None
+    url: str | None = None
+
+
 class RouterSessionRequired(ValueError):
     pass
 
@@ -66,6 +76,19 @@ def comment_fingerprint(issue_number: int, comment_id: str, body: str) -> str:
     return f"issue-{issue_number}-comment-{comment_id}-sha256-{sha256_text(body)}"
 
 
+def thread_update_fingerprint(
+    issue_number: int,
+    first_source_id: str,
+    last_source_id: str,
+    body: str,
+) -> str:
+    return (
+        f"issue-{issue_number}-thread-"
+        f"{safe_filename_part(first_source_id)}-"
+        f"{safe_filename_part(last_source_id)}-sha256-{sha256_text(body)}"
+    )
+
+
 def safe_filename_part(value: str) -> str:
     cleaned = SAFE_FILENAME_RE.sub("_", value).strip("._")
     return cleaned or "EMPTY"
@@ -80,46 +103,124 @@ def collect_issue_events(issues: Iterable[IssueSnapshot]) -> tuple[IssueEvent, .
     for issue in sorted(issues, key=lambda value: value.issue_number):
         if issue.issue_state.lower() != "open":
             continue
-        if issue.body.strip():
-            events.append(
-                IssueEvent(
-                    issue_number=issue.issue_number,
-                    issue_url=issue.issue_url,
-                    issue_title=issue.title,
-                    event_type="issue_body",
-                    trigger_fingerprint=issue_body_fingerprint(
-                        issue.issue_number,
-                        issue.body,
-                    ),
-                    body=issue.body,
-                    source_url=issue.issue_url,
-                    created_at=issue.created_at,
-                )
-            )
-        for comment in sorted(
-            issue.comments,
-            key=lambda value: (_datetime_sort_key(value.created_at), value.comment_id),
-        ):
-            if is_ai_marker_comment(comment) or not comment.body.strip():
-                continue
-            events.append(
-                IssueEvent(
-                    issue_number=issue.issue_number,
-                    issue_url=issue.issue_url,
-                    issue_title=issue.title,
-                    event_type="comment",
-                    trigger_fingerprint=comment_fingerprint(
-                        issue.issue_number,
-                        comment.comment_id,
-                        comment.body,
-                    ),
-                    body=comment.body,
-                    source_id=comment.comment_id,
-                    source_url=comment.url or issue.issue_url,
-                    created_at=comment.created_at,
-                )
-            )
+        event = _thread_update_event(issue)
+        if event is not None:
+            events.append(event)
     return tuple(events)
+
+
+def _thread_update_event(issue: IssueSnapshot) -> IssueEvent | None:
+    comments = _sorted_comments(issue.comments)
+    marker_index = _latest_valid_marker_comment_index(issue.issue_number, comments)
+    sources: list[ThreadSource] = []
+
+    if marker_index is None and issue.body.strip():
+        sources.append(
+            ThreadSource(
+                source_id="body",
+                heading="Issue body",
+                body=issue.body,
+                created_at=issue.created_at,
+                url=issue.issue_url,
+            )
+        )
+
+    candidate_comments = (
+        comments if marker_index is None else comments[marker_index + 1 :]
+    )
+    for comment in candidate_comments:
+        if is_ai_marker_comment(comment) or not comment.body.strip():
+            continue
+        sources.append(
+            ThreadSource(
+                source_id=comment.comment_id,
+                heading=f"Comment {comment.comment_id}",
+                body=comment.body,
+                created_at=comment.created_at,
+                author=comment.author,
+                url=comment.url or issue.issue_url,
+            )
+        )
+
+    if not sources:
+        return None
+
+    body = _combined_thread_body(sources)
+    first_source_id = sources[0].source_id
+    last_source_id = sources[-1].source_id
+    source_id = (
+        first_source_id
+        if first_source_id == last_source_id
+        else f"{first_source_id}..{last_source_id}"
+    )
+    source_url = sources[-1].url or issue.issue_url
+    created_at = sources[-1].created_at or issue.updated_at or issue.created_at
+    return IssueEvent(
+        issue_number=issue.issue_number,
+        issue_url=issue.issue_url,
+        issue_title=issue.title,
+        event_type="thread_update",
+        trigger_fingerprint=thread_update_fingerprint(
+            issue.issue_number,
+            first_source_id,
+            last_source_id,
+            body,
+        ),
+        body=body,
+        source_id=source_id,
+        source_url=source_url,
+        created_at=created_at,
+    )
+
+
+def _sorted_comments(comments: Iterable[IssueComment]) -> tuple[IssueComment, ...]:
+    return tuple(
+        sorted(
+            comments,
+            key=lambda value: (_datetime_sort_key(value.created_at), value.comment_id),
+        )
+    )
+
+
+def _latest_valid_marker_comment_index(
+    issue_number: int,
+    comments: tuple[IssueComment, ...],
+) -> int | None:
+    latest_index = None
+    latest_key = None
+    for index, comment in enumerate(comments):
+        markers = parse_agent_markers(
+            comment.body,
+            fallback_issue_number=issue_number,
+            comment_id=comment.comment_id,
+            created_at=comment.created_at,
+        )
+        if not markers:
+            continue
+        key = (_datetime_sort_key(comment.created_at), comment.comment_id)
+        if latest_key is None or key >= latest_key:
+            latest_key = key
+            latest_index = index
+    return latest_index
+
+
+def _combined_thread_body(sources: Iterable[ThreadSource]) -> str:
+    return "\n\n".join(_thread_source_block(source) for source in sources)
+
+
+def _thread_source_block(source: ThreadSource) -> str:
+    lines = [
+        f"## {source.heading}",
+        f"- source_id: {source.source_id}",
+    ]
+    if source.created_at:
+        lines.append(f"- created_at: {source.created_at}")
+    if source.author:
+        lines.append(f"- author: {source.author}")
+    if source.url:
+        lines.append(f"- url: {source.url}")
+    lines.extend(["", source.body.strip()])
+    return "\n".join(lines)
 
 
 def parse_agent_markers(

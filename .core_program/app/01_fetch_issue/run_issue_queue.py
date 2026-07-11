@@ -282,6 +282,7 @@ def queue_results_to_dict(results: Iterable[Any]) -> dict[str, object]:
                 "prompt_kind": result.plan.record.prompt_kind,
                 "recipient_role": result.plan.record.recipient_role,
                 "target_session_id": result.plan.record.target_session_id,
+                "source_id": result.plan.record.source_id,
                 "trigger_fingerprint": result.plan.record.trigger_fingerprint,
                 "sub_artifact_path": result.plan.record.sub_artifact_path,
                 "reassign_required": result.plan.record.reassign_required,
@@ -333,7 +334,12 @@ def _short(value: object, *, limit: int = 80) -> str:
 
 def _queue_item_line(item: dict[str, object]) -> str:
     event_type = str(item.get("event_type") or "")
-    label = "body" if event_type == "issue_body" else "comment"
+    if event_type == "issue_body":
+        label = "body"
+    elif event_type == "thread_update":
+        label = "thread"
+    else:
+        label = "comment"
     title = _short(item.get("issue_title") or "(no title)")
     recipient_role = str(item.get("recipient_role") or "")
     prompt_kind = str(item.get("prompt_kind") or "")
@@ -430,7 +436,7 @@ def human_summary(
 
     lines.extend(
         _numbered_block(
-            "Found new body/comment",
+            "Found new issue thread update",
             (
                 _queue_item_line(item)
                 for item in queue_items

@@ -51,7 +51,7 @@ SESSION_ID_SEARCH_RE = re.compile(
     r"(?![0-9a-fA-F])"
 )
 FIELD_RE = re.compile(r"^\s*-\s*([A-Za-z_][A-Za-z0-9_ -]*)\s*:\s*(.*?)\s*$")
-FINGERPRINT_START_RE = re.compile(r"_(?=issue-\d+-(?:body|comment)-)")
+FINGERPRINT_START_RE = re.compile(r"_(?=issue-\d+-(?:body|comment|thread)-)")
 SUB_ARTIFACT_NUMBER_RE = re.compile(r"(?:^|/)sub_artifact/(\d{3})_[^/]+")
 BOOTSTRAP_SESSION_ID_FIELDS = ("session_id", "router_session_id")
 _MISSING = object()
@@ -610,8 +610,8 @@ def build_dispatch_prompt(
         f"- recipient_role: {record.recipient_role}\n"
         f"- target_session_id: {record.target_session_id}\n\n"
         "If your current session ID is not target_session_id, do not perform the work.\n"
-        "If recipient_role is worker, process the issue event as the assigned worker.\n"
-        "If recipient_role is router, route the issue event and hand it off to the correct worker.\n\n"
+        "If recipient_role is worker, process the issue thread update as the assigned worker.\n"
+        "If recipient_role is router, route the issue thread update and hand it off to the correct worker.\n\n"
         f"{_read_prompt(template_path)}\n\n"
         "DISPATCH_V1_INPUT\n"
         "```json\n"
