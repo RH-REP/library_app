@@ -49,6 +49,24 @@ Worker role:
   human-visible GitHub issue comment to the supplied issue.
 - If `local_demo_contract.external_side_effects_forbidden` is true, do not call
   GitHub and report the planned comment text in the session only.
+- In the final issue comment, all repository paths must be clickable GitHub
+  links. Do not write only plain backticked paths such as
+  `sub_artifact/004_xxx/artifact.md`.
+- For directories, link to
+  `https://github.com/OWNER/REPO/tree/BRANCH/path/to/dir`.
+- For files, link to
+  `https://github.com/OWNER/REPO/blob/BRANCH/path/to/file`.
+- Prefer Markdown links whose label is the repository path itself.
+- If a final issue comment contains repository paths without clickable GitHub
+  links, rewrite the comment before posting.
+- Preferred final comment shape:
+  1. Short completion line, such as `Issue #ISSUE_NUMBER 対応しました。`
+  2. One sentence linking the main sub-artifact directory.
+  3. `追加したもの:` as a flat bullet list of clickable file/directory links.
+  4. Optional short section such as `整理した観点:` or `実施内容:`.
+  5. Commit / push result.
+  6. Optional next-step suggestions.
+  7. The required `codex-agent-v1` marker footer as the very last line.
 - Put one `codex-agent-v1` marker footer at the very end of the comment.
 - Use only these marker statuses: `done`, `reassign_required`, `authentication_blocked`.
 - Unless `local_demo_contract.external_side_effects_forbidden` is true, commit

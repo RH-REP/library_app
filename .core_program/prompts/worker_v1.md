@@ -63,6 +63,24 @@ Finalization rules:
 - The posted comment must summarize the completed work, verification, and
   commit/push status, then end with the required `codex-agent-v1` marker
   footer.
+- Use clickable GitHub links for repository paths in the final issue comment.
+  Do not write only plain backticked paths such as
+  `sub_artifact/004_xxx/artifact.md`.
+- For directories, link to
+  `https://github.com/OWNER/REPO/tree/BRANCH/path/to/dir`.
+- For files, link to
+  `https://github.com/OWNER/REPO/blob/BRANCH/path/to/file`.
+- Prefer Markdown links whose label is the repository path itself.
+- If a final issue comment contains repository paths without clickable GitHub
+  links, rewrite the comment before posting.
+- Preferred final comment shape:
+  1. Short completion line, such as `Issue #ISSUE_NUMBER 対応しました。`
+  2. One sentence linking the main sub-artifact directory.
+  3. `追加したもの:` as a flat bullet list of clickable file/directory links.
+  4. Optional short section such as `整理した観点:` or `実施内容:`.
+  5. Commit / push result.
+  6. Optional next-step suggestions.
+  7. The required `codex-agent-v1` marker footer as the very last line.
 - Do not move pending files to archive. After posting the final GitHub issue
   comment with the required `codex-agent-v1` marker, leave the exact supplied
   pending file in `.core_program/pending/`; Python fetch/reconcile archives it

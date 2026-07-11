@@ -251,6 +251,27 @@ class DispatchTest(unittest.TestCase):
             self.assertIn('"worker_must_not_move_pending_to_archive": true', worker_prompt)
             self.assertNotIn("mv .core_program/pending/xxx.md", worker_prompt)
             self.assertIn('"post_comment_required": true', worker_prompt)
+            self.assertIn(
+                '"repository_paths_must_be_clickable_github_links": true',
+                worker_prompt,
+            )
+            self.assertIn(
+                '"plain_backticked_repository_paths_are_not_sufficient": true',
+                worker_prompt,
+            )
+            self.assertIn(
+                '"directory_link_template": "https://github.com/OWNER/REPO/tree/BRANCH/path/to/dir"',
+                worker_prompt,
+            )
+            self.assertIn(
+                '"file_link_template": "https://github.com/OWNER/REPO/blob/BRANCH/path/to/file"',
+                worker_prompt,
+            )
+            self.assertIn(
+                '"rewrite_comment_before_posting_if_paths_are_not_clickable": true',
+                worker_prompt,
+            )
+            self.assertIn("追加したもの: flat bullet list of clickable links", worker_prompt)
             self.assertIn('"push_required": true', worker_prompt)
             self.assertIn("- recipient_role: router", router_prompt)
             self.assertIn(f"- target_session_id: {ROUTER_SESSION_ID}", router_prompt)
