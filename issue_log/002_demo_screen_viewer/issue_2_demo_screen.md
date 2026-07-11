@@ -48,3 +48,19 @@
 - 実ファイルの読み込みと保存を行う場合はバックエンド API が必要。
 - PDF や画像の実プレビューは、対象ファイルの配置場所と配信方法を決めてから実装する。
 - 本格実装では、既存 `.tools/knowledge_web` の file index 生成とサーバ機能を流用するか判断する。
+
+## Follow-up: lib 廃止と現行構成への差し替え
+
+追加コメントで、`main_artifact/lib/` は廃止し、現在の `web_app / private_data / fixtures` 構成へ移したい、viewer もその参照先へ差し替えたい、という依頼があった。
+
+対応:
+
+- `main_artifact/lib/readme.md` を削除した。
+- `docs/main_artifact/lib/readme.md` を削除した。
+- demo viewer の参照先を、`main_artifact/web_app_directory_plan.md`、`main_artifact/web_app/README.md`、`main_artifact/private_data/programming_tech_library/README.md`、`main_artifact/fixtures/demo_programming_tech_library/README.md` へ差し替えた。
+- Pages 公開用の `docs/main_artifact/...` コピーも新構成へ合わせた。
+
+判断:
+
+- `lib/` は viewer デモの都合で生えた仮の参照先として扱い、正規の置き場にはしない。
+- viewer の現在の見せ口は `main_artifact` の現行構成へ合わせる。

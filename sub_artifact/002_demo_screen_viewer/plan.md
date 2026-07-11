@@ -14,4 +14,4 @@
 - 左ペイン幅はデスクトップで約 1/4 を基準にする。
 - 検索、種別、タグ、状態のフィルターを用意する。
 - Markdown はプレビュー、編集、分割表示を切り替えられるようにする。
-- `main_artifact/lib/readme.md` を viewer のツリーに出し、右側ビューで確認できるようにする。
+- `main_artifact/web_app_directory_plan.md` と `main_artifact/web_app/README.md`、`main_artifact/private_data/programming_tech_library/README.md`、`main_artifact/fixtures/demo_programming_tech_library/README.md` を viewer のツリーに出し、右側ビューで確認できるようにする。

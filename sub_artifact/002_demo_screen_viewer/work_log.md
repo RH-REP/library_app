@@ -26,3 +26,10 @@
 - 追加コメント「GitHub で誰でも確認できる方法がよい」を受領した。
 - GitHub Pages 用に `docs/` 配下へ demo viewer と `readme.md` の公開コピーを作成した。
 - `docs/index.html` を追加し、Pages のルートから demo viewer へ遷移するようにした。
+
+## 2026-07-11 follow-up 2
+
+- 追加コメントで、`main_artifact/lib/` を廃止し、viewer の参照先を現行の `web_app / private_data / fixtures` 構成へ差し替える方針を受領した。
+- `main_artifact/lib/readme.md` と `docs/main_artifact/lib/readme.md` を削除した。
+- `demo.html` のツリー表示と fetch 先を、`main_artifact/web_app_directory_plan.md`、`main_artifact/web_app/README.md`、`main_artifact/private_data/programming_tech_library/README.md`、`main_artifact/fixtures/demo_programming_tech_library/README.md` へ差し替えた。
+- Pages 公開用の `docs/main_artifact/...` コピーも新構成へ同期した。

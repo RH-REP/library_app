@@ -867,31 +867,117 @@
     <script>
       const fileData = [
         {
-          path: "main_artifact/lib/readme.md",
+          path: "main_artifact/web_app_directory_plan.md",
           kind: "markdown",
-          tags: ["main_artifact", "lib"],
+          tags: ["main_artifact", "web_app", "plan"],
           status: "review",
-          updated: "2026-07-10 18:05",
-          sourcePath: "../../main_artifact/lib/readme.md",
-          content: `# lib README
+          updated: "2026-07-11 18:20",
+          sourcePath: "../../main_artifact/web_app_directory_plan.md",
+          content: `# Web App Directory Plan
 
-このファイルは、Issue #2 のデモ画面で実際に選択・表示するためのサンプルライブラリ資料です。
+## 目的
 
-## Viewer 確認
+開発段階では、配布用成果物の完全な無汚染化よりも、Web app 本体と個別データを物理的に分けて扱えることを優先する。
 
-- \`main_artifact/lib/readme.md\` をフォルダツリーに表示する。
-- ファイルを選択すると右側の Markdown ビューで内容を確認できる。
-- Markdown のプレビュー、編集、分割表示の対象にする。
+## 初期フォルダ構成
 
-## 位置づけ
+\`\`\`
+main_artifact/
+├── web_app/
+├── private_data/programming_tech_library/
+└── fixtures/demo_programming_tech_library/
+\`\`\`
 
-\`main_artifact/lib/\` は、今後 viewer から参照したいメイン成果物側の資料置き場として使う想定です。`
+## 運用ルール
+
+- Web app のコード変更は \`main_artifact/web_app/\` に寄せる。
+- 実データは \`main_artifact/private_data/programming_tech_library/\` に寄せる。
+- 共有してよい再現データだけを \`main_artifact/fixtures/demo_programming_tech_library/\` に置く。`
+        },
+        {
+          path: "main_artifact/web_app/README.md",
+          kind: "markdown",
+          tags: ["main_artifact", "web_app", "software"],
+          status: "active",
+          updated: "2026-07-11 18:20",
+          sourcePath: "../../main_artifact/web_app/README.md",
+          content: `# Web App
+
+このディレクトリは、図書館システムの Web app 本体を置く場所である。
+
+## 想定構成
+
+\`\`\`
+web_app/
+├── frontend/
+├── backend/
+├── shared/
+├── scripts/
+├── tests/
+└── config.example.yml
+\`\`\`
+
+ここには UI、API、schema、設定テンプレートを置く。個別の蔵書データ、PDF、個人メモは置かない。`
+        },
+        {
+          path: "main_artifact/private_data/programming_tech_library/README.md",
+          kind: "markdown",
+          tags: ["main_artifact", "private_data", "library"],
+          status: "active",
+          updated: "2026-07-11 18:20",
+          sourcePath: "../../main_artifact/private_data/programming_tech_library/README.md",
+          content: `# Programming Tech Library Private Data
+
+このディレクトリは、開発中に使う個別データの置き場である。
+
+## 想定する内訳
+
+\`\`\`
+programming_tech_library/
+├── raw_sources/
+├── staging/
+├── library_records/
+├── research_requests/
+├── notes/
+└── attachments/
+\`\`\`
+
+この配下は、現段階では private な開発履歴として commit してよい。ただし、Web app 本体とは別物として扱う。`
+        },
+        {
+          path: "main_artifact/fixtures/demo_programming_tech_library/README.md",
+          kind: "markdown",
+          tags: ["main_artifact", "fixtures", "demo"],
+          status: "review",
+          updated: "2026-07-11 18:20",
+          sourcePath: "../../main_artifact/fixtures/demo_programming_tech_library/README.md",
+          content: `# Demo Programming Tech Library Data
+
+このディレクトリは、共有可能な demo 用データの置き場である。
+
+## 想定する内訳
+
+\`\`\`
+demo_programming_tech_library/
+├── records/
+├── snippets/
+└── search_cases/
+\`\`\`
+
+ここには架空データ、十分に匿名化したデータ、再現用の最小データだけを置く。`
         }
       ];
 
       const state = {
-        selectedPath: "main_artifact/lib/readme.md",
-        expanded: new Set(["main_artifact", "main_artifact/lib"]),
+        selectedPath: "main_artifact/web_app_directory_plan.md",
+        expanded: new Set([
+          "main_artifact",
+          "main_artifact/web_app",
+          "main_artifact/private_data",
+          "main_artifact/private_data/programming_tech_library",
+          "main_artifact/fixtures",
+          "main_artifact/fixtures/demo_programming_tech_library"
+        ]),
         viewMode: "split",
         draft: "",
         dirty: false
