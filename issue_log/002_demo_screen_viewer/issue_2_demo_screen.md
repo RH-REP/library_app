@@ -29,8 +29,7 @@
 対応:
 
 - `main_artifact/lib/readme.md` を追加した。
-- demo viewer のツリーに `main_artifact/lib/readme.md` を追加した。
-- 初期選択ファイルを `main_artifact/lib/readme.md` にした。
+- demo viewer のツリーを `main_artifact/lib/readme.md` のみに絞った。
 - HTTP 経由で開いた場合は実ファイルを fetch し、直接ファイルとして開いた場合は同じ内容の fallback を表示するようにした。
 - generic path `sub_artifact/002_artifact` を `sub_artifact/002_demo_screen_viewer` に改名した。
 

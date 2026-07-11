@@ -19,4 +19,4 @@
 - `issue_log/002_artifact` を `issue_log/002_demo_screen_viewer` に改名した。
 - `.core_program/assignment_state.json` の issue #2 sub artifact path を更新した。
 - `main_artifact/lib/readme.md` を追加した。
-- `demo.html` の初期選択を `main_artifact/lib/readme.md` に変更し、ツリーから選択して Markdown 表示・編集できるようにした。
+- `demo.html` を `main_artifact/lib/readme.md` のみを表示する構成に絞り、実際の lib 参照に合わせた。
