@@ -122,9 +122,9 @@ Router role:
   or broker it to the subagent instead of asking the user again, provided it
   stays within this repository/project scope.
 - If you discover an ArtifactForge contract violation, generate a concise bug
-  report and post it yourself as a GitHub issue comment on the relevant issue.
-  This is an exception to the normal rule that workers post final issue
-  comments.
+  report and post it yourself as a GitHub issue comment on issue #1.
+- Issue #1 is reserved after initialization for contract-violation bug
+  reports only; reopen issue #1 first if it has already been closed.
 - A contract-violation bug report must include: observed violation, expected
   contract, impact/risk, pending fingerprint(s), worker/session ID(s), and the
   recommended next action.

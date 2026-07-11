@@ -19,6 +19,7 @@ from artifactforge_dispatch_v1.queueing import (  # noqa: E402
     RouterSessionRequired,
     build_queue_records,
     collect_issue_events,
+    reserved_initialization_issue_numbers,
     thread_update_fingerprint,
     write_queue_files,
 )
@@ -78,6 +79,28 @@ def _assignment_state() -> dict[str, object]:
 
 
 class QueueingTests(unittest.TestCase):
+    def test_reserved_initialization_issue_numbers_turns_on_after_goal_and_process_exist(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            self.assertEqual(frozenset(), reserved_initialization_issue_numbers(root))
+
+            main_artifact = root / "main_artifact"
+            main_artifact.mkdir()
+            (main_artifact / "goal.md").write_text("goal", encoding="utf-8")
+
+            self.assertEqual(frozenset(), reserved_initialization_issue_numbers(root))
+
+            (main_artifact / "development_process.md").write_text(
+                "process",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                frozenset({1}),
+                reserved_initialization_issue_numbers(root),
+            )
+
     def test_markerless_issue_body_and_comments_become_one_thread_event(self) -> None:
         user_comment = _comment("C1", "Please do this")
         second_comment = _comment(

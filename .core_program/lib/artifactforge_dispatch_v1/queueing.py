@@ -14,6 +14,13 @@ from .lifecycle import iter_pending_records
 from .models import AgentMarker, IssueComment, IssueEvent, IssueSnapshot, QueueRecord
 
 
+CORE_DIR = Path(__file__).resolve().parents[2]
+REPO_ROOT = CORE_DIR.parent
+INITIALIZATION_ISSUE_NUMBER = 1
+INITIALIZATION_GOAL_PATH = Path("main_artifact") / "goal.md"
+INITIALIZATION_PROCESS_PATH = Path("main_artifact") / "development_process.md"
+
+
 AI_MARKER_TOKEN = "codex-agent-v1:"
 VALID_MARKER_STATUSES = frozenset(
     {"done", "reassign_required", "authentication_blocked"}
@@ -91,6 +98,18 @@ class ThreadSource:
 
 class RouterSessionRequired(ValueError):
     pass
+
+
+def reserved_initialization_issue_numbers(
+    repo_dir: str | Path | None = None,
+) -> frozenset[int]:
+    root = Path(repo_dir) if repo_dir is not None else REPO_ROOT
+    if (
+        (root / INITIALIZATION_GOAL_PATH).exists()
+        and (root / INITIALIZATION_PROCESS_PATH).exists()
+    ):
+        return frozenset({INITIALIZATION_ISSUE_NUMBER})
+    return frozenset()
 
 
 def sha256_text(text: str) -> str:

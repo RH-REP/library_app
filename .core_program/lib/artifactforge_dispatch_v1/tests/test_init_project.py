@@ -99,5 +99,21 @@ class InitProjectGitignoreTest(unittest.TestCase):
                 self.assertEqual(0, result.returncode, msg=path)
 
 
+class InitProjectFirstIssueBodyTest(unittest.TestCase):
+    def test_first_issue_body_reserves_issue_number_one_after_initialization(self) -> None:
+        body = init_project.build_first_issue_body(
+            init_project.FirstIssueAnswers(
+                what="A small demo",
+                process="Iterate in small steps",
+                goal="Ship a clear first milestone",
+            )
+        )
+
+        self.assertIn("issue #1", body)
+        self.assertIn("初期化が終わったあとの issue #1", body)
+        self.assertIn("契約違反 bug report", body)
+        self.assertIn("reopen", body)
+
+
 if __name__ == "__main__":
     unittest.main()

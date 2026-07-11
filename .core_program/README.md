@@ -141,8 +141,10 @@ Normal final GitHub issue comments are posted by the assigned worker. The
 exception is a contract-violation bug report: if the Session_router discovers
 that ArtifactForge's routing, permission, concurrency, marker, pending/archive,
 or worker-responsibility contract has been violated, the Session_router posts a
-concise bug report comment to the relevant issue itself. That bug report ends
-with a `codex-agent-v1` marker using an existing status, usually
+concise bug report comment to issue `#1` itself. Issue `#1` is reserved after
+initialization for these contract-violation bug reports only; reopen issue `#1`
+first if it has already been closed. That bug report ends with a
+`codex-agent-v1` marker using an existing status, usually
 `authentication_blocked` unless the violation is specifically a wrong-session
 assignment (`reassign_required`). Posting the bug report does not by itself
 archive the pending file.

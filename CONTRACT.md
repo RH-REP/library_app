@@ -80,6 +80,14 @@ goal source of truth.
 It is for explanations that should remain understandable without inspecting
 `.core_program/` runtime state.
 
+### Initial issue `#1`
+
+In an initialized user project, the first issue created from the README
+template is issue `#1`. After initialization, issue `#1` is reserved for
+Session_router contract-violation bug reports only and must not be used for
+ordinary project work or normal queue items. Reopen issue `#1` before posting
+there if it has already been closed.
+
 ### `.core_program/`
 
 `.core_program/` is the internal engine boundary. It owns machine-facing runtime

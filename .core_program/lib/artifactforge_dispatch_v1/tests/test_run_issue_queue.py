@@ -302,6 +302,81 @@ class RunIssueQueueTests(unittest.TestCase):
         infer_repo.assert_not_called()
         fetch_open_issues.assert_called_once_with("EXPLICIT/REPO", limit=100, gh_bin="gh")
 
+    def test_initialized_projects_skip_issue_number_one_for_normal_queueing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            main_artifact = root / "main_artifact"
+            main_artifact.mkdir()
+            (main_artifact / "goal.md").write_text("goal", encoding="utf-8")
+            (main_artifact / "development_process.md").write_text(
+                "process",
+                encoding="utf-8",
+            )
+            assignment_state = root / "assignment_state.json"
+            issues = root / "issues.json"
+            _write_assignment_state(assignment_state)
+            issues.write_text(
+                json.dumps(
+                    {
+                        "issues": [
+                            {
+                                "issue_number": 1,
+                                "issue_state": "open",
+                                "issue_url": "https://example.invalid/issues/1",
+                                "title": "Initialization question",
+                                "body": "Use issue one only for initialization or bug reports.",
+                                "created_at": "2026-07-10T00:00:00+00:00",
+                                "comments": [],
+                            },
+                            {
+                                "issue_number": 2,
+                                "issue_state": "open",
+                                "issue_url": "https://example.invalid/issues/2",
+                                "title": "Normal follow-up",
+                                "body": "Please continue.",
+                                "created_at": "2026-07-10T00:01:00+00:00",
+                                "comments": [],
+                            },
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with mock.patch.object(run_issue_queue, "REPO_ROOT", root), mock.patch.object(
+                run_issue_queue,
+                "bootstrap_session_router",
+            ) as bootstrap_session_router, mock.patch(
+                "sys.stdout",
+                new_callable=io.StringIO,
+            ) as stdout:
+                exit_code = run_issue_queue.main(
+                    [
+                        "--dry-run",
+                        "--compact",
+                        "--issues",
+                        str(issues),
+                        "--assignment-state",
+                        str(assignment_state),
+                        "--output",
+                        str(root / "open_issues.json"),
+                        "--queue-dir",
+                        str(root / "queue"),
+                        "--pending-dir",
+                        str(root / "pending"),
+                        "--archive-dir",
+                        str(root / "archive"),
+                    ]
+                )
+                summary = json.loads(stdout.getvalue())
+
+        self.assertEqual(0, exit_code)
+        bootstrap_session_router.assert_not_called()
+        self.assertEqual(1, summary["queue"]["queue_result_count"])
+        self.assertEqual(2, summary["queue"]["items"][0]["issue_number"])
+        self.assertEqual("session_router", summary["queue"]["items"][0]["prompt_kind"])
+        self.assertEqual("router", summary["queue"]["items"][0]["recipient_role"])
+
     def test_real_run_checks_closed_issue_for_unresolved_pending_marker(self) -> None:
         fingerprint = "issue-9-body-sha256-closed-marker"
         with tempfile.TemporaryDirectory() as temp_dir:

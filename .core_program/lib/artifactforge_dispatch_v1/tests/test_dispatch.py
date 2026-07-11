@@ -296,6 +296,8 @@ class DispatchTest(unittest.TestCase):
                 '"contract_violation_bug_report_wrong_session_status": "reassign_required"',
                 router_prompt,
             )
+            self.assertIn("issue #1", router_prompt)
+            self.assertIn("reopen issue #1", router_prompt)
             self.assertIn('"workers_may_be_non_visible": true', router_prompt)
             self.assertIn('"subagents_may_be_non_visible": true', router_prompt)
             self.assertIn('"worker_sessions_default_visibility": "non_visible"', router_prompt)
@@ -1020,6 +1022,34 @@ class DispatchTest(unittest.TestCase):
                     WORKER_SESSION_ID,
                     state["records"][0]["worker_session_id"],
                 )
+
+    def test_dispatch_skips_reserved_initialization_issue_after_setup(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "main_artifact").mkdir()
+            (root / "main_artifact" / "goal.md").write_text("goal", encoding="utf-8")
+            (root / "main_artifact" / "development_process.md").write_text(
+                "process",
+                encoding="utf-8",
+            )
+            queue_path = root / "queue" / "001.md"
+            pending_dir = root / "pending"
+            assignment_state = root / "assignment_state.json"
+            write_assignment_state(assignment_state)
+            write_queue_record(queue_path, sample_record(issue_number=1))
+            runner = FakeCodexRunner()
+
+            result = dispatch_queue_file(
+                queue_path,
+                runner=runner,
+                repo_dir=root,
+                pending_dir=pending_dir,
+                assignment_state_path=assignment_state,
+            )
+
+        self.assertTrue(result.skipped)
+        self.assertEqual("reserved_initialization_issue", result.skip_reason)
+        self.assertEqual([], runner.calls)
 
     def test_dispatch_queue_does_not_renotify_dispatched_pending_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
