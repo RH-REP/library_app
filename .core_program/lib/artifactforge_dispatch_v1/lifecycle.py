@@ -16,12 +16,13 @@ MARKER_RE = re.compile(r"<!--\s*codex-agent-v1:\s*(\{.*?\})\s*-->", re.DOTALL)
 ISSUE_NUMBER_RE = re.compile(r"^issue-(\d+)-")
 PENDING_FILENAME_RE = re.compile(r"_(?=(?:issue|step2|test)-)")
 FIELD_RE = re.compile(r"^\s*-?\s*([A-Za-z_][A-Za-z0-9_ -]*)\s*:\s*(.*?)\s*$")
+HUMAN_WAITING_DIR_NAME = "human_wating"
 
 VALID_MARKER_STATUSES = frozenset(
     {"done", "reassign_required", "authentication_blocked"}
 )
 ARCHIVE_STATUSES = frozenset({"done"})
-PENDING_STATUSES = frozenset({"reassign_required", "authentication_blocked"})
+HUMAN_WAITING_STATUSES = frozenset({"reassign_required", "authentication_blocked"})
 
 
 @dataclass(frozen=True)
@@ -32,8 +33,10 @@ class PendingLifecycleResult:
     status: str | None = None
     moved: bool = False
     archive_path: str | None = None
+    human_waiting_path: str | None = None
     reassign_required: bool = False
     authentication_blocked: bool = False
+    human_waiting: bool = False
     reason: str | None = None
     error: str | None = None
 
@@ -42,6 +45,7 @@ class PendingLifecycleResult:
 class PendingLifecycleSummary:
     results: tuple[PendingLifecycleResult, ...]
     pending_dir: str
+    human_waiting_dir: str
     archive_dir: str
     dry_run: bool
 
@@ -55,6 +59,18 @@ class PendingLifecycleSummary:
             result.pending.trigger_fingerprint
             for result in self.results
             if result.reassign_required
+        )
+
+    @property
+    def human_waiting(self) -> tuple[PendingLifecycleResult, ...]:
+        return tuple(result for result in self.results if result.human_waiting)
+
+    @property
+    def human_waiting_fingerprints(self) -> tuple[str, ...]:
+        return tuple(
+            result.pending.trigger_fingerprint
+            for result in self.results
+            if result.human_waiting
         )
 
 
@@ -76,6 +92,29 @@ def _parse_datetime(value: str | None) -> datetime:
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return datetime.min.replace(tzinfo=timezone.utc)
+
+
+def _path_text(path: str | Path) -> str:
+    return str(Path(path)).replace("\\", "/")
+
+
+def _is_under_directory(path: str | Path, directory: str | Path) -> bool:
+    path_text = _path_text(path)
+    directory_text = _path_text(directory).rstrip("/")
+    return path_text == directory_text or path_text.startswith(directory_text + "/")
+
+
+def _bucket_for_path(
+    path: str | Path,
+    *,
+    pending_dir: str | Path,
+    human_waiting_dir: str | Path,
+) -> str:
+    if _is_under_directory(path, human_waiting_dir):
+        return "human_waiting"
+    if _is_under_directory(path, pending_dir):
+        return "pending"
+    return "pending"
 
 
 def parse_agent_markers(
@@ -267,19 +306,61 @@ def archive_destination(source_path: str | Path, archive_dir: str | Path) -> Pat
     raise RuntimeError(f"could not allocate archive path for {source.name}")
 
 
+def human_waiting_destination(
+    source_path: str | Path,
+    human_waiting_dir: str | Path,
+) -> Path:
+    source = Path(source_path)
+    target_dir = Path(human_waiting_dir)
+    candidate = target_dir / source.name
+    if not candidate.exists():
+        return candidate
+
+    for index in range(2, 10_000):
+        candidate = target_dir / f"{source.stem}.{index}{source.suffix}"
+        if not candidate.exists():
+            return candidate
+    raise RuntimeError(f"could not allocate human_wating path for {source.name}")
+
+
 def reconcile_pending_records(
     pending_records: Iterable[PendingRecord],
     markers: Iterable[AgentMarker],
     *,
     archive_dir: str | Path,
+    pending_dir: str | Path,
+    human_waiting_dir: str | Path | None = None,
     dry_run: bool = False,
 ) -> tuple[PendingLifecycleResult, ...]:
     markers_by_fingerprint = latest_marker_by_fingerprint(markers)
+    target_human_waiting_dir = (
+        Path(human_waiting_dir)
+        if human_waiting_dir is not None
+        else Path(pending_dir).parent / HUMAN_WAITING_DIR_NAME
+    )
     results: list[PendingLifecycleResult] = []
 
     for pending in pending_records:
         marker = markers_by_fingerprint.get(pending.trigger_fingerprint)
+        bucket = _bucket_for_path(
+            pending.path,
+            pending_dir=pending_dir,
+            human_waiting_dir=target_human_waiting_dir,
+        )
         if marker is None:
+            if bucket == "human_waiting":
+                results.append(
+                    PendingLifecycleResult(
+                        pending=pending,
+                        marker=None,
+                        action="human_waiting",
+                        moved=False,
+                        human_waiting_path=str(Path(pending.path)),
+                        human_waiting=True,
+                        reason="no_marker",
+                    )
+                )
+                continue
             results.append(
                 PendingLifecycleResult(
                     pending=pending,
@@ -290,53 +371,45 @@ def reconcile_pending_records(
             )
             continue
 
-        if marker.status == "reassign_required":
-            if marker.thread_id and pending.session_id == marker.thread_id:
-                destination = archive_destination(pending.path, archive_dir)
-                if dry_run:
-                    results.append(
-                        PendingLifecycleResult(
-                            pending=pending,
-                            marker=marker,
-                            action="archive",
-                            status=marker.status,
-                            moved=False,
-                            archive_path=str(destination),
-                            reassign_required=True,
-                            reason="reassign_required_marker",
-                        )
-                    )
-                    continue
-
-                try:
-                    destination.parent.mkdir(parents=True, exist_ok=True)
-                    Path(pending.path).rename(destination)
-                except Exception as exc:
-                    results.append(
-                        PendingLifecycleResult(
-                            pending=pending,
-                            marker=marker,
-                            action="archive",
-                            status=marker.status,
-                            moved=False,
-                            archive_path=str(destination),
-                            reassign_required=True,
-                            reason="archive_failed",
-                            error=str(exc),
-                        )
-                    )
-                    continue
-
+        if marker.status in HUMAN_WAITING_STATUSES:
+            destination = human_waiting_destination(
+                pending.path,
+                target_human_waiting_dir,
+            )
+            if bucket == "human_waiting" or dry_run:
                 results.append(
                     PendingLifecycleResult(
                         pending=pending,
                         marker=marker,
-                        action="archive",
+                        action="human_waiting",
                         status=marker.status,
-                        moved=True,
-                        archive_path=str(destination),
-                        reassign_required=True,
-                        reason="reassign_required_marker",
+                        moved=False,
+                        human_waiting_path=str(destination),
+                        reassign_required=marker.status == "reassign_required",
+                        authentication_blocked=marker.status == "authentication_blocked",
+                        human_waiting=True,
+                        reason=f"{marker.status}_marker",
+                    )
+                )
+                continue
+
+            try:
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                Path(pending.path).rename(destination)
+            except Exception as exc:
+                results.append(
+                    PendingLifecycleResult(
+                        pending=pending,
+                        marker=marker,
+                        action="human_waiting",
+                        status=marker.status,
+                        moved=False,
+                        human_waiting_path=str(destination),
+                        reassign_required=marker.status == "reassign_required",
+                        authentication_blocked=marker.status == "authentication_blocked",
+                        human_waiting=True,
+                        reason="human_waiting_failed",
+                        error=str(exc),
                     )
                 )
                 continue
@@ -345,28 +418,32 @@ def reconcile_pending_records(
                 PendingLifecycleResult(
                     pending=pending,
                     marker=marker,
-                    action="keep_pending",
+                    action="human_waiting",
                     status=marker.status,
-                    reason="reassign_handoff_pending",
-                )
-            )
-            continue
-
-        if marker.status in PENDING_STATUSES:
-            results.append(
-                PendingLifecycleResult(
-                    pending=pending,
-                    marker=marker,
-                    action="keep_pending",
-                    status=marker.status,
+                    moved=True,
+                    human_waiting_path=str(destination),
                     reassign_required=marker.status == "reassign_required",
                     authentication_blocked=marker.status == "authentication_blocked",
+                    human_waiting=True,
                     reason=f"{marker.status}_marker",
                 )
             )
             continue
 
         if marker.status not in ARCHIVE_STATUSES:
+            if bucket == "human_waiting":
+                results.append(
+                    PendingLifecycleResult(
+                        pending=pending,
+                        marker=marker,
+                        action="human_waiting",
+                        status=marker.status,
+                        human_waiting=True,
+                        human_waiting_path=str(Path(pending.path)),
+                        reason="unknown_marker_status",
+                    )
+                )
+                continue
             results.append(
                 PendingLifecycleResult(
                     pending=pending,
@@ -461,7 +538,10 @@ def reconcile_pending_with_issue_snapshots(
     results: list[PendingLifecycleResult] = []
 
     for result in summary.results:
-        if result.action != "keep_pending" or result.reason != "no_marker":
+        if result.reason != "no_marker" or result.action not in {
+            "keep_pending",
+            "human_waiting",
+        }:
             results.append(result)
             continue
 
@@ -507,6 +587,7 @@ def reconcile_pending_with_issue_snapshots(
     return PendingLifecycleSummary(
         results=tuple(results),
         pending_dir=summary.pending_dir,
+        human_waiting_dir=summary.human_waiting_dir,
         archive_dir=str(Path(target_archive_dir)),
         dry_run=target_dry_run,
     )
@@ -566,17 +647,27 @@ def reconcile_pending_from_issues(
     archive_dir: str | Path,
     dry_run: bool = False,
 ) -> PendingLifecycleSummary:
-    records = iter_pending_records(pending_dir)
+    human_waiting_dir = Path(pending_dir).parent / HUMAN_WAITING_DIR_NAME
+    records = tuple(
+        sorted(
+            tuple(iter_pending_records(pending_dir))
+            + tuple(iter_pending_records(human_waiting_dir)),
+            key=lambda record: record.path,
+        )
+    )
     markers = collect_agent_markers_from_issues(issues)
     results = reconcile_pending_records(
         records,
         markers,
         archive_dir=archive_dir,
+        pending_dir=pending_dir,
+        human_waiting_dir=human_waiting_dir,
         dry_run=dry_run,
     )
     return PendingLifecycleSummary(
         results=results,
         pending_dir=str(Path(pending_dir)),
+        human_waiting_dir=str(human_waiting_dir),
         archive_dir=str(Path(archive_dir)),
         dry_run=dry_run,
     )
@@ -595,6 +686,7 @@ def lifecycle_summary_to_dict(summary: PendingLifecycleSummary) -> dict[str, obj
     return {
         "schema_version": 1,
         "pending_dir": summary.pending_dir,
+        "human_waiting_dir": summary.human_waiting_dir,
         "archive_dir": summary.archive_dir,
         "dry_run": summary.dry_run,
         "pending_count": len(result_tuple),
@@ -606,6 +698,10 @@ def lifecycle_summary_to_dict(summary: PendingLifecycleSummary) -> dict[str, obj
         "kept_pending_count": sum(
             1 for result in result_tuple if result.action == "keep_pending"
         ),
+        "human_waiting_planned_count": sum(
+            1 for result in result_tuple if result.action == "human_waiting"
+        ),
+        "human_waiting_count": sum(1 for result in result_tuple if result.human_waiting),
         "authentication_blocked_fingerprints": [
             result.pending.trigger_fingerprint
             for result in result_tuple
@@ -614,5 +710,6 @@ def lifecycle_summary_to_dict(summary: PendingLifecycleSummary) -> dict[str, obj
         "reassign_required_fingerprints": list(
             summary.reassign_required_fingerprints
         ),
+        "human_waiting_fingerprints": list(summary.human_waiting_fingerprints),
         "items": [lifecycle_result_to_dict(result) for result in result_tuple],
     }

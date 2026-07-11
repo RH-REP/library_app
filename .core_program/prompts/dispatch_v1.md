@@ -50,16 +50,25 @@ Worker role:
   human-visible GitHub issue comment to the supplied issue.
 - If `local_demo_contract.external_side_effects_forbidden` is true, do not call
   GitHub and report the planned comment text in the session only.
-- In the final issue comment, all repository paths must be clickable GitHub
-  links. Do not write only plain backticked paths such as
-  `sub_artifact/004_xxx/plan.md`.
-- For directories, link to
-  `https://github.com/OWNER/REPO/tree/BRANCH/path/to/dir`.
-- For files, link to
-  `https://github.com/OWNER/REPO/blob/BRANCH/path/to/file`.
-- Prefer Markdown links whose label is the repository path itself.
-- If a final issue comment contains repository paths without clickable GitHub
-  links, rewrite the comment before posting.
+In the final issue comment, write repository paths as clickable GitHub links.
+Write them like this:
+
+- Directory:
+  - [`sub_artifact/005_multiformat_text_extraction/`](https://github.com/OWNER/REPO/tree/BRANCH/sub_artifact/005_multiformat_text_extraction)
+- File:
+  - [`sub_artifact/005_multiformat_text_extraction/artifact.md`](https://github.com/OWNER/REPO/blob/BRANCH/sub_artifact/005_multiformat_text_extraction/artifact.md)
+
+Prefer Markdown links whose label is the repository path itself.
+In `追加したもの:`, make every repository path bullet a clickable Markdown link.
+If a final issue comment still contains repository paths without clickable GitHub
+links, rewrite the comment before posting.
+HTML example:
+
+- Directory:
+  - <a href="https://github.com/OWNER/REPO/tree/BRANCH/sub_artifact/005_multiformat_text_extraction">sub_artifact/005_multiformat_text_extraction/</a>
+- File:
+  - <a href="https://github.com/OWNER/REPO/blob/BRANCH/sub_artifact/005_multiformat_text_extraction/artifact.md">sub_artifact/005_multiformat_text_extraction/artifact.md</a>
+  - <a href="https://github.com/OWNER/REPO/tree/BRANCH/sub_artifact/005_multiformat_text_extraction">sub_artifact/005_multiformat_text_extraction/ に今回の整理をまとめました</a>
 - Preferred final comment shape:
   1. Short completion line, such as `Issue #ISSUE_NUMBER 対応しました。`
   2. One sentence linking the main sub-artifact directory.
@@ -122,9 +131,9 @@ Router role:
   or broker it to the subagent instead of asking the user again, provided it
   stays within this repository/project scope.
 - If you discover an ArtifactForge contract violation, generate a concise bug
-  report and post it yourself as a GitHub issue comment on the relevant issue.
-  This is an exception to the normal rule that workers post final issue
-  comments.
+  report and post it yourself as a GitHub issue comment on issue #1.
+- Issue #1 is reserved after initialization for contract-violation bug
+  reports only; reopen issue #1 first if it has already been closed.
 - A contract-violation bug report must include: observed violation, expected
   contract, impact/risk, pending fingerprint(s), worker/session ID(s), and the
   recommended next action.
@@ -154,6 +163,9 @@ Worker session ID:
   with the required `codex-agent-v1` marker is posted, leave the pending file in
   `.core_program/pending/`; the next Python fetch/reconcile archives it after
   confirming the exact pending `trigger_fingerprint` marker.
+- Python fetch/reconcile moves `status: done` records to `.core_program/archive/`
+  and moves `reassign_required` or `authentication_blocked` records to
+  `.core_program/human_wating/`.
 - Do not reset `dispatched`, `blocked`, `human_waiting`, `deferred`,
   `superseded`, or `archived` pending state back to `router_notified`.
   If work is blocked, deferred, waiting for human input, or still in progress,

@@ -103,6 +103,9 @@ issue_log/000_development_process/*
 !.core_program/request_for_human/
 .core_program/request_for_human/*
 !.core_program/request_for_human/.gitkeep
+!.core_program/human_wating/
+.core_program/human_wating/*
+!.core_program/human_wating/.gitkeep
 
 # ArtifactForge project initialization:
 # sub_artifact/* and issue_log/* are tracked in initialized user projects.

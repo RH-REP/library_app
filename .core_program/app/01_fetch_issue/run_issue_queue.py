@@ -42,6 +42,7 @@ from artifactforge_dispatch_v1.queueing import (  # noqa: E402
     collect_issue_events,
     delete_superseded_pending_files,
     latest_marker_by_fingerprint,
+    reserved_initialization_issue_numbers,
     safe_filename_part,
     write_queue_files,
 )
@@ -221,13 +222,17 @@ def router_bootstrap_required(
     *,
     pending_dir: str | Path,
     archive_dir: str | Path,
+    reserved_issue_numbers: Iterable[int] = (),
 ) -> bool:
     issue_tuple = tuple(issues)
     marker_lookup = latest_marker_by_fingerprint(collect_agent_markers(issue_tuple))
     pending_index = fingerprint_index(collect_existing_fingerprints(pending_dir))
     archive_index = fingerprint_index(collect_existing_fingerprints(archive_dir))
+    reserved_index = {int(value) for value in reserved_issue_numbers}
 
     for event in collect_issue_events(issue_tuple):
+        if event.issue_number in reserved_index:
+            continue
         marker = marker_lookup.get(event.trigger_fingerprint)
         if marker is not None and marker.status in ARCHIVE_STATUSES:
             continue
@@ -480,15 +485,22 @@ def human_summary(
         for item in pending_items
         if isinstance(item, dict) and item.get("action") == "archive"
     ]
+    human_waiting_lines = [
+        _pending_item_line(item)
+        for item in pending_items
+        if isinstance(item, dict) and item.get("action") == "human_waiting"
+    ]
     kept_pending_lines = [
         _pending_item_line(item)
         for item in pending_items
         if isinstance(item, dict) and item.get("action") != "archive"
+        and item.get("action") != "human_waiting"
     ]
     requeue_commands = [
         _pending_requeue_command(item, queue_dir=queue_dir)
         for item in pending_items
         if isinstance(item, dict) and item.get("action") != "archive"
+        and item.get("action") != "human_waiting"
     ]
     queued_lines = [
         _queue_item_line(item)
@@ -513,6 +525,8 @@ def human_summary(
     if requeue_commands:
         lines.append("")
         lines.extend(_numbered_block("pending -> queue commands", requeue_commands))
+    lines.append("")
+    lines.extend(_numbered_block("human_wating", human_waiting_lines))
     lines.append("")
     lines.extend(
         _numbered_block(
@@ -562,11 +576,17 @@ def main(argv: list[str] | None = None) -> int:
         dry_run=args.dry_run,
         repo_is_fixture=repo_is_fixture,
     )
+    reserved_issue_numbers = reserved_initialization_issue_numbers(REPO_ROOT)
+    issue_tuple = tuple(issues)
+    work_issues = tuple(
+        issue for issue in issue_tuple if issue.issue_number not in reserved_issue_numbers
+    )
     router_required = router_bootstrap_required(
-        issues,
+        work_issues,
         assignment_state,
         pending_dir=args.pending_dir,
         archive_dir=args.archive_dir,
+        reserved_issue_numbers=reserved_issue_numbers,
     )
     codex_sessions_effect = ensure_router_session_id(
         assignment_state,
@@ -577,7 +597,7 @@ def main(argv: list[str] | None = None) -> int:
         router_required=router_required,
     )
     lifecycle = reconcile_pending_from_issues(
-        issues,
+        issue_tuple,
         pending_dir=args.pending_dir,
         archive_dir=args.archive_dir,
         dry_run=args.dry_run,
@@ -607,8 +627,9 @@ def main(argv: list[str] | None = None) -> int:
                 error=str(exc),
             )
     records = build_queue_records(
-        issues,
+        work_issues,
         assignment_state,
+        markers=collect_agent_markers(issue_tuple),
         pending_dir=args.pending_dir,
         archive_dir=args.archive_dir,
     )

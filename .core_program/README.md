@@ -10,6 +10,7 @@ It owns machine-facing records only:
 - issue fetch state
 - `.core_program/queue/`
 - `.core_program/pending/`
+- `.core_program/human_wating/`
 - `.core_program/archive/`
 - `.core_program/assignment_state.json`
 - internal logs and diagnostics
@@ -37,6 +38,7 @@ It must not own user-facing artifact content. User-facing work belongs under
 │   └── dry_run/
 ├── queue/
 ├── pending/
+├── human_wating/
 └── archive/
 ```
 
@@ -141,8 +143,10 @@ Normal final GitHub issue comments are posted by the assigned worker. The
 exception is a contract-violation bug report: if the Session_router discovers
 that ArtifactForge's routing, permission, concurrency, marker, pending/archive,
 or worker-responsibility contract has been violated, the Session_router posts a
-concise bug report comment to the relevant issue itself. That bug report ends
-with a `codex-agent-v1` marker using an existing status, usually
+concise bug report comment to issue `#1` itself. Issue `#1` is reserved after
+initialization for these contract-violation bug reports only; reopen issue `#1`
+first if it has already been closed. That bug report ends with a
+`codex-agent-v1` marker using an existing status, usually
 `authentication_blocked` unless the violation is specifically a wrong-session
 assignment (`reassign_required`). Posting the bug report does not by itself
 archive the pending file.
@@ -201,11 +205,12 @@ superseded
 archived
 ```
 
-Python fetch/reconcile owns pending archive. When it observes the exact
-`codex-agent-v1` marker for a pending `trigger_fingerprint` on GitHub, it moves
-the corresponding pending file to `.core_program/archive/` with the same
-filename and updates archive-related state. Routers and workers must not move
-pending files to archive themselves, and must not reset `dispatched`, `blocked`,
+Python fetch/reconcile owns pending archive and human-wating routing. When it
+observes the exact `codex-agent-v1` marker for a pending `trigger_fingerprint`
+on GitHub, it moves `status: done` files to `.core_program/archive/` and moves
+`status: reassign_required` or `status: authentication_blocked` files to
+`.core_program/human_wating/` with the same filename. Routers and workers must
+not move pending files themselves, and must not reset `dispatched`, `blocked`,
 `human_waiting`, `deferred`, `superseded`, or `archived` records back to
 `router_notified`.
 

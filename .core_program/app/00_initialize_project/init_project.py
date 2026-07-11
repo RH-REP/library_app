@@ -225,6 +225,9 @@ def build_first_issue_body(answers: FirstIssueAnswers) -> str:
 ## AI agent 向けコメント
 
 この issue は、この ArtifactForge project の最初の相談です。
+初期化が終わったあとの issue #1 は通常の作業には使わず、
+Session_router の契約違反 bug report の受け皿としてだけ再利用してください。
+bug report を投稿する必要があるときは、issue #1 を reopen してから投稿します。
 
 まず、この issue の回答から次の2ファイルを作成または更新してください。
 

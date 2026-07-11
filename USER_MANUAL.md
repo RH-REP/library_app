@@ -186,6 +186,9 @@ git remote get-url --push upstream
 `main_artifact/goal.md` は、この project の制作目標の正本です。
 最初は README の first issue テンプレートを GitHub issue に貼り付け、
 AI agent に `goal.md` を作成してもらうのが基本です。
+この最初の issue #1 は初期化用の入口で、初期化後は通常の作業には使わず、
+Session_router の契約違反 bug report の受け皿としてだけ再利用します。
+bug report を投稿する必要があるときは、issue #1 を reopen してから使います。
 
 最初の issue で答える中心は3つです。
 

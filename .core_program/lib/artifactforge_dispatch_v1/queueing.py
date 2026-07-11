@@ -14,6 +14,14 @@ from .lifecycle import iter_pending_records
 from .models import AgentMarker, IssueComment, IssueEvent, IssueSnapshot, QueueRecord
 
 
+CORE_DIR = Path(__file__).resolve().parents[2]
+REPO_ROOT = CORE_DIR.parent
+INITIALIZATION_ISSUE_NUMBER = 1
+INITIALIZATION_GOAL_PATH = Path("main_artifact") / "goal.md"
+INITIALIZATION_PROCESS_PATH = Path("main_artifact") / "development_process.md"
+HUMAN_WAITING_DIR_NAME = "human_wating"
+
+
 AI_MARKER_TOKEN = "codex-agent-v1:"
 VALID_MARKER_STATUSES = frozenset(
     {"done", "reassign_required", "authentication_blocked"}
@@ -91,6 +99,26 @@ class ThreadSource:
 
 class RouterSessionRequired(ValueError):
     pass
+
+
+def reserved_initialization_issue_numbers(
+    repo_dir: str | Path | None = None,
+) -> frozenset[int]:
+    root = Path(repo_dir) if repo_dir is not None else REPO_ROOT
+    if (
+        (root / INITIALIZATION_GOAL_PATH).exists()
+        and (root / INITIALIZATION_PROCESS_PATH).exists()
+    ):
+        return frozenset({INITIALIZATION_ISSUE_NUMBER})
+    return frozenset()
+
+
+def human_waiting_dir_for(
+    pending_dir: str | Path | None = None,
+) -> Path:
+    if pending_dir is None:
+        return CORE_DIR / HUMAN_WAITING_DIR_NAME
+    return Path(pending_dir).parent / HUMAN_WAITING_DIR_NAME
 
 
 def sha256_text(text: str) -> str:
@@ -337,6 +365,7 @@ def build_queue_records(
     pending_fingerprints: Iterable[str] = (),
     archive_fingerprints: Iterable[str] = (),
     pending_dir: str | Path | None = None,
+    human_waiting_dir: str | Path | None = None,
     archive_dir: str | Path | None = None,
 ) -> tuple[QueueRecord, ...]:
     issue_tuple = tuple(issues)
@@ -347,8 +376,16 @@ def build_queue_records(
     pending_index = _fingerprint_index(
         pending_fingerprints,
         collect_existing_fingerprints(pending_dir) if pending_dir is not None else (),
+        collect_existing_fingerprints(human_waiting_dir)
+        if human_waiting_dir is not None
+        else collect_existing_fingerprints(
+            human_waiting_dir_for(pending_dir) if pending_dir is not None else None
+        ),
     )
-    pending_sessions = _pending_sessions_by_fingerprint(pending_dir)
+    pending_sessions = _pending_sessions_by_fingerprint(
+        pending_dir,
+        human_waiting_dir if human_waiting_dir is not None else human_waiting_dir_for(pending_dir),
+    )
     archive_index = _fingerprint_index(
         archive_fingerprints,
         collect_existing_fingerprints(archive_dir) if archive_dir is not None else (),
@@ -685,17 +722,25 @@ def _fingerprint_present(index: frozenset[str], fingerprint: str) -> bool:
     return fingerprint in index or safe_filename_part(fingerprint) in index
 
 
-def _pending_sessions_by_fingerprint(path: str | Path | None) -> dict[str, set[str]]:
-    if path is None:
+def _pending_sessions_by_fingerprint(
+    pending_dir: str | Path | None,
+    human_waiting_dir: str | Path | None = None,
+) -> dict[str, set[str]]:
+    if pending_dir is None and human_waiting_dir is None:
         return {}
 
     sessions: dict[str, set[str]] = {}
-    for record in iter_pending_records(path):
-        for fingerprint in (
-            record.trigger_fingerprint,
-            safe_filename_part(record.trigger_fingerprint),
-        ):
-            sessions.setdefault(fingerprint, set()).add(record.session_id)
+    for path in tuple(
+        value
+        for value in (pending_dir, human_waiting_dir)
+        if value is not None
+    ):
+        for record in iter_pending_records(path):
+            for fingerprint in (
+                record.trigger_fingerprint,
+                safe_filename_part(record.trigger_fingerprint),
+            ):
+                sessions.setdefault(fingerprint, set()).add(record.session_id)
     return sessions
 
 

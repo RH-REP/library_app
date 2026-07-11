@@ -20,6 +20,8 @@ from .models import QueueRecord
 from .queueing import (
     build_queue_markdown,
     collect_existing_fingerprints,
+    human_waiting_dir_for,
+    reserved_initialization_issue_numbers,
     safe_filename_part,
 )
 
@@ -630,7 +632,8 @@ def _router_orchestration_instructions(
             "- Use a visible child session only when non-visible execution is unsuitable, debug observation is necessary, or the user explicitly asks for visibility; record the reason when this happens.",
             "- Preserve `.core_program/assignment_state.json` as the issue/session/sub-artifact routing state.",
             "- If `reassign_required` is true, avoid `previous_thread_id` when choosing a worker.",
-            "- If you discover an ArtifactForge contract violation, post a concise bug report yourself as a GitHub issue comment on the relevant issue.",
+            "- If you discover an ArtifactForge contract violation, post a concise bug report yourself as a GitHub issue comment on issue #1.",
+            "- Issue #1 is reserved after initialization for contract-violation bug reports only; reopen issue #1 first if it has already been closed.",
             "- End a contract-violation bug report with a `codex-agent-v1` marker; prefer `authentication_blocked` unless the violation is specifically wrong-session assignment.",
             "- Do not archive pending work merely because a bug report was posted.",
             "- Before asking the user a question, write a resumption memo under `.core_program/request_for_human/` so the work can resume smoothly if the human is unavailable.",
@@ -638,6 +641,7 @@ def _router_orchestration_instructions(
             "- Do not move pending files to archive. Python fetch/reconcile owns the pending-to-archive transition after it observes the exact GitHub marker for the pending fingerprint.",
             "- After posting or confirming the final marker, leave the pending file in `.core_program/pending/` so the next Python fetch/reconcile can archive it safely.",
             "- Do not reset `dispatched`, `blocked`, `human_waiting`, `deferred`, `superseded`, or `archived` pending state back to `router_notified`.",
+            "- Python fetch/reconcile moves `status: done` records to `.core_program/archive/` and moves `reassign_required` or `authentication_blocked` records to `.core_program/human_wating/`.",
             "",
             "Output:",
             "- Report concise routing progress in this visible router session.",
@@ -850,6 +854,7 @@ def build_dispatch_prompt(
             "The user's human-facing interface is the Session_router; child sessions default to non-visible.\n"
             "Worker and subagent sessions default to non-visible; visible child sessions require a recorded reason.\n"
             "Any login, approval, permission, or TTY requirement must be routed through the Session_router.\n"
+            "Python fetch/reconcile moves `status: done` records to `.core_program/archive/` and moves `reassign_required` or `authentication_blocked` records to `.core_program/human_wating/`.\n"
             "If recipient_role is worker, process the issue thread update as the assigned worker.\n"
             "If recipient_role is router, read `.core_program/pending` and dispatch/delegate from there; "
             "do not ask the dispatcher to send worker prompts.\n\n"
@@ -981,6 +986,7 @@ def duplicate_dispatch_reason(
 
     pending_sessions = _pending_sessions_for_fingerprint(
         pending_dir,
+        human_waiting_dir_for(pending_dir),
         record.trigger_fingerprint,
     )
     if not pending_sessions:
@@ -1049,20 +1055,23 @@ def target_session_has_unresolved_pending(
     target_session_id = str(session_id).strip()
     if not target_session_id:
         return False
-    for record in iter_pending_records(pending_dir):
-        if record.session_id == target_session_id:
-            return True
+    for path in (pending_dir, human_waiting_dir_for(pending_dir)):
+        for record in iter_pending_records(path):
+            if record.session_id == target_session_id:
+                return True
     return False
 
 
 def _pending_sessions_for_fingerprint(
     pending_dir: str | Path,
+    human_waiting_dir: str | Path,
     fingerprint: str,
 ) -> Tuple[str, ...]:
     sessions = []
-    for record in iter_pending_records(pending_dir):
-        if _fingerprints_match(record.trigger_fingerprint, fingerprint):
-            sessions.append(record.session_id)
+    for path in (pending_dir, human_waiting_dir):
+        for record in iter_pending_records(path):
+            if _fingerprints_match(record.trigger_fingerprint, fingerprint):
+                sessions.append(record.session_id)
     return tuple(sessions)
 
 
@@ -1391,6 +1400,19 @@ def dispatch_queue_file(
         assignment_state_path=assignment_state_path,
         router_session_id=router_session_id,
     )
+    reserved_issue_numbers = reserved_initialization_issue_numbers(repo_dir)
+    if plan.record.issue_number in reserved_issue_numbers:
+        return DispatchResult(
+            plan=plan,
+            sent=False,
+            moved_to_pending=False,
+            session_id=plan.router_session_id or plan.record.target_session_id,
+            router_session_id=plan.router_session_id,
+            skipped=True,
+            skip_reason="reserved_initialization_issue",
+            dry_run=dry_run,
+            move_to_pending=move_to_pending,
+        )
     skip_reason = duplicate_dispatch_reason(
         plan.record,
         pending_dir=pending_dir,
@@ -1557,11 +1579,13 @@ def dispatch_queue(
     paths = iter_queue_paths(queue_dir)
     if limit is not None:
         paths = paths[: max(0, limit)]
+    reserved_issue_numbers = reserved_initialization_issue_numbers(repo_dir)
     prepared = _prepare_pending_batch_paths(
         paths,
         pending_dir=pending_dir,
         archive_dir=archive_dir,
         repo_dir=repo_dir,
+        reserved_issue_numbers=reserved_issue_numbers,
         codex_bin=codex_bin,
         assignment_state_path=assignment_state_path,
         pending_state_path=pending_state_path,
@@ -1692,6 +1716,7 @@ def _prepare_pending_batch_paths(
     pending_dir: str | Path,
     archive_dir: str | Path,
     repo_dir: str | Path,
+    reserved_issue_numbers: frozenset[int],
     codex_bin: str | Path,
     assignment_state_path: Optional[Union[str, Path]],
     pending_state_path: Optional[Union[str, Path]],
@@ -1703,6 +1728,41 @@ def _prepare_pending_batch_paths(
     for index, path in enumerate(paths):
         try:
             source_record = read_queue_record(path)
+            if source_record.issue_number in reserved_issue_numbers:
+                plan = _build_dispatch_plan(
+                    path,
+                    source_record,
+                    pending_dir=pending_dir,
+                    pending_path=pending_destination(
+                        path,
+                        pending_dir,
+                        source_record.target_session_id,
+                    ),
+                    repo_dir=repo_dir,
+                    codex_bin=codex_bin,
+                    router_session_id=_planned_router_session_id(
+                        source_record,
+                        assignment_state_path=assignment_state_path,
+                    ),
+                )
+                prepared.append(
+                    (
+                        index,
+                        plan,
+                        DispatchResult(
+                            plan=plan,
+                            sent=False,
+                            moved_to_pending=False,
+                            session_id=plan.router_session_id or plan.record.target_session_id,
+                            router_session_id=plan.router_session_id,
+                            skipped=True,
+                            skip_reason="reserved_initialization_issue",
+                            dry_run=dry_run,
+                            move_to_pending=move_to_pending,
+                        ),
+                    )
+                )
+                continue
             router_session_id = _planned_router_session_id(
                 source_record,
                 assignment_state_path=assignment_state_path,
@@ -2014,6 +2074,7 @@ def _prepare_dispatch_paths(
 ) -> Tuple[Tuple[int, Path, Optional[DispatchResult]], ...]:
     prepared = []
     selected_router_invocation = False
+    reserved_issue_numbers = reserved_initialization_issue_numbers(repo_dir)
     for index, path in enumerate(paths):
         try:
             plan = plan_dispatch(
@@ -2024,6 +2085,25 @@ def _prepare_dispatch_paths(
                 assignment_state_path=assignment_state_path,
             )
         except FileNotFoundError:
+            continue
+        if plan.record.issue_number in reserved_issue_numbers:
+            prepared.append(
+                (
+                    index,
+                    path,
+                    DispatchResult(
+                        plan=plan,
+                        sent=False,
+                        moved_to_pending=False,
+                        session_id=plan.router_session_id or plan.record.target_session_id,
+                        router_session_id=plan.router_session_id,
+                        skipped=True,
+                        skip_reason="reserved_initialization_issue",
+                        dry_run=dry_run,
+                        move_to_pending=move_to_pending,
+                    ),
+                )
+            )
             continue
         skip_reason = duplicate_dispatch_reason(
             plan.record,
