@@ -234,8 +234,12 @@ sub_artifact/
     ├── sub_goal.md
     ├── plan.md
     ├── work_log.md
-    └── artifact.md
+    ├── src/
+    └── notes.md
 ```
+
+`sub_artifact/NNN_slug/` の中身は自由な構成でよく、Markdown だけに限定しません。
+必要なコード、テスト、データ、画像、生成物を置いて構いません。
 
 `.core_program/` は router、queue、pending、assignment state などの内部状態を
 扱います。通常ユーザーは直接編集しません。
@@ -321,7 +325,7 @@ ignore されている可能性があります。
 確認:
 
 ```sh
-git check-ignore -v sub_artifact/001_example/artifact.md
+git check-ignore -v sub_artifact/001_example/plan.md
 git check-ignore -v issue_log/001_example/work_log.md
 ```
 

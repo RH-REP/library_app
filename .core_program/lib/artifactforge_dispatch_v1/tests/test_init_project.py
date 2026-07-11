@@ -69,7 +69,7 @@ class InitProjectGitignoreTest(unittest.TestCase):
             (root / ".gitignore").write_text(project_text, encoding="utf-8")
 
             for path in (
-                "sub_artifact/001_example/artifact.md",
+                "sub_artifact/001_example/plan.md",
                 "issue_log/001_example/work_log.md",
             ):
                 result = subprocess.run(

@@ -13,21 +13,21 @@ Workers create numbered sub-artifact directories on first real work:
 sub_artifact/NNN_slug/
 ```
 
-Each initialized sub-artifact contains:
+The standard starter files are:
 
 ```text
 sub_goal.md
 plan.md
 work_log.md
-artifact.md
 ```
 
 The first worker that owns a new assignment initializes these files. Re-running
 the same assignment must be idempotent and must not create a second path for the
 same current assignment.
 
+Beyond those starter files, the directory is free-form. It can contain notes,
+source code, tests, data, screenshots, generated outputs, or any other files the
+workstream needs. No single summary file is required.
+
 `sub_artifact/` does not own the main production goal, repository process, issue
 log, queue state, pending state, or router diagnostics.
-
-The future `artifact.md` file is scoped inside a numbered sub-artifact
-directory. It is not a dependency on a legacy top-level `artifact/` directory.
