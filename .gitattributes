@@ -4,3 +4,4 @@ private_data/** export-ignore
 local_private_data/** export-ignore
 private_config/** export-ignore
 *.private.* export-ignore
+main_artifact/private_data/** export-ignore

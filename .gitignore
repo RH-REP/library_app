@@ -29,6 +29,20 @@ main_artifact/*
 !main_artifact/README.md
 !main_artifact/.goal_template.md
 !main_artifact/.development_process_template.md
+!main_artifact/web_app_directory_plan.md
+!main_artifact/web_app/
+main_artifact/web_app/*
+!main_artifact/web_app/README.md
+!main_artifact/private_data/
+main_artifact/private_data/*
+!main_artifact/private_data/programming_tech_library/
+main_artifact/private_data/programming_tech_library/*
+!main_artifact/private_data/programming_tech_library/README.md
+!main_artifact/fixtures/
+main_artifact/fixtures/*
+!main_artifact/fixtures/demo_programming_tech_library/
+main_artifact/fixtures/demo_programming_tech_library/*
+!main_artifact/fixtures/demo_programming_tech_library/README.md
 
 # sub_artifact: user/worker production units are project data.
 !sub_artifact/README.md

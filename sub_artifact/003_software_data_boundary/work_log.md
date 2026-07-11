@@ -16,3 +16,11 @@
 - private 開発中は個別データを commit してよいが、配布時には clean archive または clean repository から出す必要があることを整理した。
 - `private_data/**` などを release archive から除外するため `.gitattributes` に `export-ignore` を追加した。
 - `artifact.md` と issue log に follow-up 判断を追記した。
+
+## 2026-07-11 follow-up 2
+
+- Issue #3 の追加コメントを確認した。
+- 開発段階では配布データのコンタミを重大論点にせず、まず `main_artifact` の物理分離を優先する方針へ更新した。
+- `main_artifact/web_app_directory_plan.md` を追加した。
+- `main_artifact/web_app/` `main_artifact/private_data/programming_tech_library/` `main_artifact/fixtures/demo_programming_tech_library/` の骨格 README を追加した。
+- `goal.md` と `development_process.md` に Web app 前提の初期フォルダ構成を反映した。

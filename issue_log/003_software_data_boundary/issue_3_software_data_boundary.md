@@ -58,3 +58,29 @@
 - `private_data/programming_tech_library/` の具体的なディレクトリ構造を決める。
 - `fixtures/demo_programming_tech_library/` の最小サンプルを作る。
 - release archive 作成手順と private data 混入チェック手順を作る。
+
+## Follow-up: main_artifact で Web app と個別データを先に分ける
+
+追加コメントで、現段階では配布データのコンタミは大きな問題にせず、まず `main_artifact` の中で software 部分と個別データ部分を切り分けたい、ソフトウェアは Web app を想定する、という指示があった。
+
+判断:
+
+- 現段階では release の厳密な clean 化より、物理的な置き場の分離を優先してよい。
+- first cut は `main_artifact/web_app/` `main_artifact/private_data/programming_tech_library/` `main_artifact/fixtures/demo_programming_tech_library/` にする。
+- `web_app/` には UI、API、schema、設定テンプレートを置き、個別データは置かない。
+- `private_data/` には実データを置き、`fixtures/` には共有可能な demo データを置く。
+
+対応:
+
+- `main_artifact/web_app_directory_plan.md` を追加した。
+- `main_artifact/web_app/README.md` を追加した。
+- `main_artifact/private_data/programming_tech_library/README.md` を追加した。
+- `main_artifact/fixtures/demo_programming_tech_library/README.md` を追加した。
+- `main_artifact/goal.md` と `main_artifact/development_process.md` を更新した。
+- `.gitignore` と `.gitattributes` を更新し、新しい `main_artifact` 配下の構成を tracked / export-ignore の両面で扱えるようにした。
+
+残課題:
+
+- `main_artifact/web_app/` の frontend/backend/shared の責務を決める。
+- `main_artifact/private_data/programming_tech_library/` の最小ディレクトリを作る。
+- `main_artifact/fixtures/demo_programming_tech_library/` の最小データを作る。

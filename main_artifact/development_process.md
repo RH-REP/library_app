@@ -16,6 +16,12 @@
 
 private な開発段階では、プログラミング技術図書館の個別データを commit して保存してよい。ただし、その commit history をそのまま公開リポジトリとして配布してはいけない。配布は、個別データを除外した `git archive` か、個別データを一度も含まない clean branch / clean repository から行う。
 
+現段階の優先は、配布時の完全無汚染化を自動化することではなく、`main_artifact/` の中で Web app と個別データの置き場を分けることである。今回の first cut は次の 3 つとする。
+
+- `main_artifact/web_app/`: 画面、API、設定テンプレートなどソフトウェア本体
+- `main_artifact/private_data/programming_tech_library/`: 実運用で使う個別データ
+- `main_artifact/fixtures/demo_programming_tech_library/`: 共有可能な demo 用データ
+
 ## 工程1: 目標整理と原案化
 
 初回 issue の内容から、制作目標、成功条件、作る範囲、作らない範囲、未確定事項を整理する。あわせて、最初の作業単位として `sub_artifact/001_artifact/` を初期化する。
@@ -24,6 +30,10 @@ private な開発段階では、プログラミング技術図書館の個別デ
 
 - `main_artifact/goal.md`
 - `main_artifact/development_process.md`
+- `main_artifact/web_app_directory_plan.md`
+- `main_artifact/web_app/README.md`
+- `main_artifact/private_data/programming_tech_library/README.md`
+- `main_artifact/fixtures/demo_programming_tech_library/README.md`
 - `sub_artifact/001_artifact/sub_goal.md`
 - `sub_artifact/001_artifact/plan.md`
 - `sub_artifact/001_artifact/work_log.md`

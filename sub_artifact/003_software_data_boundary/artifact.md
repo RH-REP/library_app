@@ -42,6 +42,21 @@ fixtures/demo_programming_tech_library/
 
 `private_data/**` は `.gitattributes` で `export-ignore` にした。これにより、`git archive` で release archive を作る場合は private data を除外できる。ただし、これは archive への除外であり、GitHub に公開された Git history から消す仕組みではない。
 
+## Follow-up: 開発段階では main_artifact で先に切り分ける
+
+追加コメントで、現段階では配布データへのコンタミは重大問題とせず、まず `main_artifact` の中で software 部分と個別データ部分を切り分けたい、ソフトウェアは Web app を想定する、という方針が示された。
+
+この方針に合わせ、今の first cut は次にする。
+
+```text
+main_artifact/
+├── web_app/
+├── private_data/programming_tech_library/
+└── fixtures/demo_programming_tech_library/
+```
+
+この段階では、release の完全自動化よりも「どこに何を置くか」を固定することを優先する。`web_app/` に UI と API を寄せ、`private_data/` に実データを寄せ、`fixtures/` に再現用の共有データを寄せる。
+
 ## リポジトリの考え方
 
 現在の ArtifactForge プロジェクトでは、remote の意図は次の形でよい。
@@ -131,18 +146,20 @@ docs/data_contract.md
 - 実運用しながら開発する方針で進めてよい。
 - 当面のテーマは「プログラミングの技術」に関する図書館にする。
 - private な開発段階では、個別データを commit して保存してよい。
+- 現段階では、配布データへのコンタミよりも `main_artifact` 内の物理分離を優先する。
 - ただし、個別データを含む Git history をそのまま公開・配布しない。
 - 実データは配布用ソフトウェア本体の一部にしない。
 - ソフトウェアには、コード、契約、schema、fixture、汎用化した要件だけを入れる。
-- 個別データは private runtime data として扱い、必要なら `private_data/programming_tech_library/` に置く。
+- Web app 本体は `main_artifact/web_app/` に寄せる。
+- 個別データは private runtime data として扱い、当面は `main_artifact/private_data/programming_tech_library/` に寄せる。
+- 共有可能な最小データは `main_artifact/fixtures/demo_programming_tech_library/` に寄せる。
 - 実運用で見つけた課題は、匿名化・抽象化して issue と fixture に変換してから実装する。
 - 配布時は `.gitattributes` の `export-ignore` を使った archive、または個別データ履歴を含まない clean repository を作る。
 
 ## 次の推奨 issue
 
-- `LIBRALY_DATA_ROOT` と `.gitignore` の設計。
-- 最小の `fixtures/demo_programming_tech_library/` 作成。
+- `main_artifact/web_app/` の frontend/backend/shared の責務設計。
+- `main_artifact/private_data/programming_tech_library/` の最小ディレクトリ作成。
+- `main_artifact/fixtures/demo_programming_tech_library/` の最小サンプル作成。
 - `docs/data_contract.md` の作成。
 - 実データ取り込み前の `raw_sources -> staging -> library_records` の流れの設計。
-- `private_data/programming_tech_library/` と `fixtures/demo_programming_tech_library/` のディレクトリ規約作成。
-- release archive 作成手順と、private data 混入チェック手順の作成。
