@@ -8,7 +8,10 @@
 demo_programming_tech_library/
 ├── records/
 ├── snippets/
-└── search_cases/
+├── search_cases/
+└── source_samples/
 ```
 
 ここには架空データ、十分に匿名化したデータ、再現用の最小データだけを置く。
+
+`source_samples/` には、alpha 開発や importer/preview 検証で使う HTML、PDF、画像などの代表的な原本サンプルを置く。

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Requirements Engineering Overview</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f5f2ea;
+        --panel: #fffdfa;
+        --text: #22201c;
+        --muted: #6d665c;
+        --line: #d7d0c4;
+        --accent: #2d6a4f;
+      }
+
+      body {
+        margin: 0;
+        padding: 32px;
+        background: radial-gradient(circle at top, #fbf8f1 0%, var(--bg) 70%);
+        color: var(--text);
+        font: 16px/1.65 Georgia, "Hiragino Mincho ProN", serif;
+      }
+
+      main {
+        max-width: 920px;
+        margin: 0 auto;
+        padding: 32px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        box-shadow: 0 20px 60px rgba(34, 32, 28, 0.08);
+      }
+
+      h1,
+      h2 {
+        line-height: 1.2;
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: 2.2rem;
+      }
+
+      h2 {
+        margin: 28px 0 12px;
+        font-size: 1.2rem;
+        color: var(--accent);
+      }
+
+      p,
+      li {
+        margin: 0 0 10px;
+      }
+
+      .lede {
+        color: var(--muted);
+      }
+
+      .callout {
+        padding: 18px 20px;
+        border-left: 4px solid var(--accent);
+        background: #f0f7f3;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+        margin-top: 18px;
+      }
+
+      .card {
+        padding: 16px;
+        border: 1px solid var(--line);
+        background: #fff;
+      }
+
+      .label {
+        font-size: 0.78rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="label">Alpha Source Sample / HTML</p>
+      <h1>要求工学・仕様化の最小メモ</h1>
+      <p class="lede">
+        何を作るかを明確にするための代表的な考え方を、alpha 開発向けの
+        簡易サンプルとしてまとめた HTML 原本。
+      </p>
+
+      <div class="callout">
+        目的: 開発前に「誰が」「何を達成したいか」を定義し、後続の検索、
+        登録、参照機能の優先順位を判断できる状態を作る。
+      </div>
+
+      <h2>代表的な手法</h2>
+      <ul>
+        <li>要件定義: 目標、制約、非機能条件を明文化する。</li>
+        <li>ユースケース: 利用者が行う操作の流れを記述する。</li>
+        <li>ユーザーストーリー: 小さな価値単位に要望を分解する。</li>
+        <li>契約による設計: 入力、出力、前提条件を明確にする。</li>
+      </ul>
+
+      <h2>alpha で確認したいこと</h2>
+      <div class="grid">
+        <section class="card">
+          <p class="label">Input</p>
+          <p>登録対象は PDF、HTML、画像などの原本を含むか。</p>
+        </section>
+        <section class="card">
+          <p class="label">Search</p>
+          <p>AI なしで検索するために最低限必要なメタデータは何か。</p>
+        </section>
+        <section class="card">
+          <p class="label">Traceability</p>
+          <p>検索結果から原本へ戻る導線をどの識別子でつなぐか。</p>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

@@ -43,6 +43,10 @@ main_artifact/fixtures/*
 !main_artifact/fixtures/demo_programming_tech_library/
 main_artifact/fixtures/demo_programming_tech_library/*
 !main_artifact/fixtures/demo_programming_tech_library/README.md
+!main_artifact/fixtures/demo_programming_tech_library/records/
+!main_artifact/fixtures/demo_programming_tech_library/records/**
+!main_artifact/fixtures/demo_programming_tech_library/source_samples/
+!main_artifact/fixtures/demo_programming_tech_library/source_samples/**
 
 # sub_artifact: user/worker production units are project data.
 !sub_artifact/README.md

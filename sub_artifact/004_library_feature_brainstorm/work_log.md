@@ -17,3 +17,12 @@
 - フォルダ階層、用語集、OCR、scan program、推薦や保存済み検索などは後回し候補として分離した。
 - `artifact.md` にアルファ開発の必須要素、非必須要素、マイルストーン、アルファ完了条件を追記した。
 - `issue_log/004_library_feature_brainstorm/issue_5_alpha_milestones.md` を作成した。
+
+## 2026-07-11 follow-up 2: Issue #5
+
+- Issue #5 の追加コメントを確認した。
+- `main_artifact/fixtures/demo_programming_tech_library/source_samples/` 配下に HTML、PDF、PNG のサンプル原本を追加した。
+- `records/alpha_source_samples.json` を作成し、3 つのサンプルを alpha 開発テーマへ対応づけた。
+- fixture README に `source_samples/` の用途を追記した。
+- `artifact.md` にサンプル原本収集の follow-up を追記した。
+- `issue_log/004_library_feature_brainstorm/issue_5_alpha_source_samples.md` を作成した。
