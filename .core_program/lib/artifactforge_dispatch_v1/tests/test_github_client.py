@@ -16,6 +16,7 @@ if str(LIB_DIR) not in sys.path:
 from artifactforge_dispatch_v1.github_client import (  # noqa: E402
     GitHubFetchError,
     GitHubRepoInferenceError,
+    fetch_issues_by_number,
     fetch_open_issues,
     infer_repo_from_origin_remote,
     load_open_issues_snapshot,
@@ -173,6 +174,57 @@ class PaginatedCommentRunner:
         return subprocess.CompletedProcess(command_list, 1, stdout="", stderr="unexpected command")
 
 
+class IssueByNumberRunner:
+    def __init__(self) -> None:
+        self.commands: list[list[str]] = []
+
+    def __call__(self, command: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        command_list = list(command)
+        self.commands.append(command_list)
+        if command_list[:3] == ["gh", "api", "graphql"]:
+            return subprocess.CompletedProcess(
+                command_list,
+                0,
+                stdout=json.dumps(
+                    {
+                        "data": {
+                            "repository": {
+                                "issue_2": {
+                                    "number": 2,
+                                    "state": "CLOSED",
+                                    "title": "Closed work",
+                                    "url": "https://github.com/OWNER/REPO/issues/2",
+                                    "body": "done",
+                                    "createdAt": "2026-07-10T00:00:00Z",
+                                    "updatedAt": "2026-07-10T00:10:00Z",
+                                    "comments": {
+                                        "pageInfo": {
+                                            "hasNextPage": False,
+                                            "endCursor": None,
+                                        },
+                                        "nodes": [
+                                            {
+                                                "id": "IC_done",
+                                                "databaseId": 77,
+                                                "author": {"login": "codex"},
+                                                "body": "done marker",
+                                                "createdAt": "2026-07-10T00:09:00Z",
+                                                "updatedAt": "2026-07-10T00:09:00Z",
+                                                "url": "https://github.com/OWNER/REPO/issues/2#issuecomment-77",
+                                            }
+                                        ],
+                                    },
+                                },
+                                "issue_3": None,
+                            }
+                        }
+                    }
+                ),
+                stderr="",
+            )
+        return subprocess.CompletedProcess(command_list, 1, stdout="", stderr="unexpected command")
+
+
 class GitHubClientTests(unittest.TestCase):
     def test_parse_github_repo_from_remote_url_supports_https_and_ssh(self) -> None:
         cases = {
@@ -257,6 +309,21 @@ class GitHubClientTests(unittest.TestCase):
         self.assertEqual(len(runner.commands), 2)
         self.assertIn("number=2", runner.commands[1])
         self.assertIn("commentCursor=COMMENT_CURSOR", runner.commands[1])
+
+    def test_fetch_issues_by_number_uses_graphql_aliases_for_open_or_closed(self) -> None:
+        runner = IssueByNumberRunner()
+
+        issues = fetch_issues_by_number("OWNER/REPO", (2, 3), runner=runner)
+
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(2, issues[0].issue_number)
+        self.assertEqual("closed", issues[0].issue_state)
+        self.assertEqual("IC_done", issues[0].comments[0].comment_id)
+        self.assertEqual(len(runner.commands), 1)
+        query_arg = next(arg for arg in runner.commands[0] if arg.startswith("query="))
+        self.assertIn("issue_2: issue(number: 2)", query_arg)
+        self.assertIn("issue_3: issue(number: 3)", query_arg)
+        self.assertNotIn("states: OPEN", query_arg)
 
     def test_fetch_raises_on_gh_error(self) -> None:
         def failing_runner(command: Sequence[str]) -> subprocess.CompletedProcess[str]:

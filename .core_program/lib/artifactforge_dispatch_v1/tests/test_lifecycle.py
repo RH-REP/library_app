@@ -15,6 +15,8 @@ from artifactforge_dispatch_v1.lifecycle import (  # noqa: E402
     lifecycle_summary_to_dict,
     read_pending_record,
     reconcile_pending_from_issues,
+    reconcile_pending_with_issue_snapshots,
+    unresolved_pending_issue_numbers,
 )
 from artifactforge_dispatch_v1.models import IssueComment, IssueSnapshot  # noqa: E402
 
@@ -26,12 +28,13 @@ def issue_with_comment(
     marker: str,
     *,
     issue_number: int = 1,
+    issue_state: str = "open",
     comment_id: str = "c1",
     created_at: str = "2026-07-10T00:00:00Z",
 ) -> IssueSnapshot:
     return IssueSnapshot(
         issue_number=issue_number,
-        issue_state="open",
+        issue_state=issue_state,
         issue_url=f"https://github.com/example/repo/issues/{issue_number}",
         title="Test issue",
         body="request",
@@ -45,6 +48,23 @@ def issue_with_comment(
                 created_at=created_at,
             ),
         ),
+    )
+
+
+def issue_without_comments(
+    *,
+    issue_number: int = 1,
+    issue_state: str = "open",
+) -> IssueSnapshot:
+    return IssueSnapshot(
+        issue_number=issue_number,
+        issue_state=issue_state,
+        issue_url=f"https://github.com/example/repo/issues/{issue_number}",
+        title="Test issue",
+        body="request",
+        created_at="2026-07-09T00:00:00Z",
+        updated_at="2026-07-09T00:00:00Z",
+        comments=(),
     )
 
 
@@ -186,6 +206,133 @@ class LifecycleTest(unittest.TestCase):
             self.assertTrue(result.moved)
             self.assertFalse(pending_path.exists())
             self.assertTrue(Path(result.archive_path or "").exists())
+
+    def test_closed_issue_done_marker_archives_unresolved_pending(self) -> None:
+        fingerprint = "issue-7-body-sha256-closed-done"
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            pending_dir = tmp_path / "pending"
+            archive_dir = tmp_path / "archive"
+            pending_dir.mkdir()
+            pending_path = pending_dir / f"{SESSION_ID}_{fingerprint}.md"
+            pending_path.write_text("prompt", encoding="utf-8")
+            initial_summary = reconcile_pending_from_issues(
+                (),
+                pending_dir=pending_dir,
+                archive_dir=archive_dir,
+                dry_run=False,
+            )
+            issue = issue_with_comment(
+                marker_body(fingerprint, "done"),
+                issue_number=7,
+                issue_state="closed",
+            )
+
+            summary = reconcile_pending_with_issue_snapshots(initial_summary, (issue,))
+            result = summary.results[0]
+
+            self.assertEqual((7,), unresolved_pending_issue_numbers(initial_summary.results))
+            self.assertEqual("archive", result.action)
+            self.assertTrue(result.moved)
+            self.assertEqual("done", result.status)
+            self.assertEqual("done_marker_closed_issue", result.reason)
+            self.assertFalse(pending_path.exists())
+            self.assertTrue(Path(result.archive_path or "").exists())
+
+    def test_closed_issue_without_marker_archives_unresolved_pending(self) -> None:
+        fingerprint = "issue-8-body-sha256-closed-no-marker"
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            pending_dir = tmp_path / "pending"
+            archive_dir = tmp_path / "archive"
+            pending_dir.mkdir()
+            pending_path = pending_dir / f"{SESSION_ID}_{fingerprint}.md"
+            pending_path.write_text("prompt", encoding="utf-8")
+            initial_summary = reconcile_pending_from_issues(
+                (),
+                pending_dir=pending_dir,
+                archive_dir=archive_dir,
+                dry_run=False,
+            )
+            issue = issue_without_comments(issue_number=8, issue_state="closed")
+
+            summary = reconcile_pending_with_issue_snapshots(initial_summary, (issue,))
+            result = summary.results[0]
+
+            self.assertEqual("archive", result.action)
+            self.assertTrue(result.moved)
+            self.assertIsNone(result.status)
+            self.assertEqual("issue_closed_without_marker", result.reason)
+            self.assertFalse(pending_path.exists())
+            self.assertTrue(Path(result.archive_path or "").exists())
+
+    def test_open_or_missing_issue_keeps_unresolved_pending(self) -> None:
+        open_fingerprint = "issue-9-body-sha256-open-no-marker"
+        missing_fingerprint = "issue-10-body-sha256-not-visible"
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            pending_dir = tmp_path / "pending"
+            archive_dir = tmp_path / "archive"
+            pending_dir.mkdir()
+            open_path = pending_dir / f"{SESSION_ID}_{open_fingerprint}.md"
+            missing_path = pending_dir / f"{SESSION_ID}_{missing_fingerprint}.md"
+            open_path.write_text("prompt", encoding="utf-8")
+            missing_path.write_text("prompt", encoding="utf-8")
+            initial_summary = reconcile_pending_from_issues(
+                (),
+                pending_dir=pending_dir,
+                archive_dir=archive_dir,
+                dry_run=False,
+            )
+            issue = issue_without_comments(issue_number=9, issue_state="open")
+
+            summary = reconcile_pending_with_issue_snapshots(initial_summary, (issue,))
+            result_by_fingerprint = {
+                result.pending.trigger_fingerprint: result
+                for result in summary.results
+            }
+
+            self.assertEqual(
+                (9, 10),
+                unresolved_pending_issue_numbers(initial_summary.results),
+            )
+            self.assertEqual(
+                "keep_pending",
+                result_by_fingerprint[open_fingerprint].action,
+            )
+            self.assertEqual(
+                "keep_pending",
+                result_by_fingerprint[missing_fingerprint].action,
+            )
+            self.assertTrue(open_path.exists())
+            self.assertTrue(missing_path.exists())
+            self.assertFalse(archive_dir.exists())
+
+    def test_closed_issue_dry_run_plans_archive_without_moving(self) -> None:
+        fingerprint = "issue-11-body-sha256-dry-run-closed"
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            pending_dir = tmp_path / "pending"
+            archive_dir = tmp_path / "archive"
+            pending_dir.mkdir()
+            pending_path = pending_dir / f"{SESSION_ID}_{fingerprint}.md"
+            pending_path.write_text("prompt", encoding="utf-8")
+            initial_summary = reconcile_pending_from_issues(
+                (),
+                pending_dir=pending_dir,
+                archive_dir=archive_dir,
+                dry_run=True,
+            )
+            issue = issue_without_comments(issue_number=11, issue_state="closed")
+
+            summary = reconcile_pending_with_issue_snapshots(initial_summary, (issue,))
+            result = summary.results[0]
+
+            self.assertEqual("archive", result.action)
+            self.assertFalse(result.moved)
+            self.assertEqual("issue_closed_without_marker", result.reason)
+            self.assertTrue(pending_path.exists())
+            self.assertFalse(archive_dir.exists())
 
     def test_blocked_marker_keeps_pending_and_reassign_marker_archives_rejected_worker(self) -> None:
         reassign_fingerprint = "issue-1-body-sha256-reassign"

@@ -79,6 +79,32 @@ query($owner: String!, $name: String!, $number: Int!, $commentCursor: String) {
   }
 }
 """
+ISSUE_GRAPHQL_FIELDS = """
+number
+state
+title
+url
+body
+createdAt
+updatedAt
+comments(first: 100) {
+  pageInfo {
+    hasNextPage
+    endCursor
+  }
+  nodes {
+    id
+    databaseId
+    author {
+      login
+    }
+    body
+    createdAt
+    updatedAt
+    url
+  }
+}
+"""
 
 
 class GitHubFetchError(RuntimeError):
@@ -373,6 +399,77 @@ def _remaining_graphql_comments(
         page_info = connection.get("pageInfo") or {}
         comment_cursor = page_info.get("endCursor") if page_info.get("hasNextPage") else None
     return comments
+
+
+def _issues_by_number_graphql_query(issue_numbers: Iterable[int]) -> str:
+    issue_fields = ISSUE_GRAPHQL_FIELDS.strip()
+    aliases = "\n".join(
+        f"issue_{number}: issue(number: {number}) {{\n{issue_fields}\n}}"
+        for number in issue_numbers
+    )
+    return (
+        "query($owner: String!, $name: String!) {\n"
+        "  repository(owner: $owner, name: $name) {\n"
+        f"{aliases}\n"
+        "  }\n"
+        "}\n"
+    )
+
+
+def fetch_issues_by_number(
+    repo: str,
+    issue_numbers: Iterable[int],
+    *,
+    gh_bin: str = "gh",
+    runner: RunCommand = _default_runner,
+) -> Tuple[IssueSnapshot, ...]:
+    owner, name = _repo_owner_and_name(repo)
+    number_set = set()
+    for issue_number in issue_numbers:
+        number = int(issue_number)
+        if number > 0:
+            number_set.add(number)
+    numbers = tuple(sorted(number_set))
+    if not numbers:
+        return ()
+
+    payload = _graphql_json(
+        query=_issues_by_number_graphql_query(numbers),
+        variables={"owner": owner, "name": name},
+        gh_bin=gh_bin,
+        runner=runner,
+    )
+    repository = payload.get("data", {}).get("repository") or {}
+    snapshots: List[IssueSnapshot] = []
+    for number in numbers:
+        node = repository.get(f"issue_{number}")
+        if not isinstance(node, dict):
+            continue
+        comments_connection = node.get("comments")
+        if isinstance(comments_connection, dict):
+            comments = [
+                comment
+                for comment in comments_connection.get("nodes") or []
+                if isinstance(comment, dict)
+            ]
+            comments_page_info = comments_connection.get("pageInfo") or {}
+            if comments_page_info.get("hasNextPage"):
+                comments.extend(
+                    _remaining_graphql_comments(
+                        owner=owner,
+                        name=name,
+                        issue_number=number,
+                        cursor=comments_page_info.get("endCursor"),
+                        gh_bin=gh_bin,
+                        runner=runner,
+                    )
+                )
+            normalized_node = dict(node)
+            normalized_node["comments"] = comments
+        else:
+            normalized_node = node
+        snapshots.append(issue_snapshot_from_graphql_node(normalized_node))
+    return tuple(snapshots)
 
 
 def fetch_open_issues_with_graphql(

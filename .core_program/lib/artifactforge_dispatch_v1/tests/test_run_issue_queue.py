@@ -28,6 +28,9 @@ def _load_run_issue_queue_module(module_name: str = "artifactforge_run_issue_que
 
 run_issue_queue = _load_run_issue_queue_module()
 
+from artifactforge_dispatch_v1.github_client import GitHubFetchError  # noqa: E402
+from artifactforge_dispatch_v1.models import IssueComment, IssueSnapshot  # noqa: E402
+
 
 ROUTER_SESSION_ID = "11111111-1111-4111-8111-111111111111"
 WORKER_SESSION_ID = "22222222-2222-4222-8222-222222222222"
@@ -90,6 +93,52 @@ def _dry_run_args(root: Path, assignment_state: Path, issues: Path):
         "--archive-dir",
         str(root / "archive"),
     ]
+
+
+def _marker_body(
+    fingerprint: str,
+    status: str,
+    *,
+    thread_id: str = WORKER_SESSION_ID,
+) -> str:
+    return (
+        "Finished.\n\n"
+        "<!-- codex-agent-v1: "
+        f'{{"thread_id":"{thread_id}",'
+        f'"trigger_fingerprint":"{fingerprint}",'
+        f'"status":"{status}"}}'
+        " -->"
+    )
+
+
+def _issue_snapshot(
+    issue_number: int,
+    *,
+    issue_state: str,
+    comments: tuple[IssueComment, ...] = (),
+) -> IssueSnapshot:
+    return IssueSnapshot(
+        issue_number=issue_number,
+        issue_state=issue_state,
+        issue_url=f"https://example.invalid/issues/{issue_number}",
+        title=f"Issue {issue_number}",
+        body="body",
+        created_at="2026-07-10T00:00:00+00:00",
+        updated_at="2026-07-10T00:10:00+00:00",
+        comments=comments,
+    )
+
+
+def _write_pending_event(path: Path, fingerprint: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "# ArtifactForge Issue Event\n\n"
+        "## Routing\n"
+        f"- target_session_id: {WORKER_SESSION_ID}\n\n"
+        "## Issue Event\n"
+        f"- trigger_fingerprint: {fingerprint}\n",
+        encoding="utf-8",
+    )
 
 
 class RunIssueQueueTests(unittest.TestCase):
@@ -220,6 +269,139 @@ class RunIssueQueueTests(unittest.TestCase):
         self.assertEqual(0, exit_code)
         infer_repo.assert_not_called()
         fetch_open_issues.assert_called_once_with("EXPLICIT/REPO", limit=100, gh_bin="gh")
+
+    def test_real_run_checks_closed_issue_for_unresolved_pending_marker(self) -> None:
+        fingerprint = "issue-9-body-sha256-closed-marker"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            assignment_state = root / "assignment_state.json"
+            output = root / "open_issues.json"
+            pending_dir = root / "pending"
+            archive_dir = root / "archive"
+            pending_path = pending_dir / f"{WORKER_SESSION_ID}_{fingerprint}.md"
+            _write_assignment_state(assignment_state)
+            _write_pending_event(pending_path, fingerprint)
+            issue = _issue_snapshot(
+                9,
+                issue_state="closed",
+                comments=(
+                    IssueComment(
+                        comment_id="IC9",
+                        author="codex",
+                        body=_marker_body(fingerprint, "done"),
+                        created_at="2026-07-10T00:12:00+00:00",
+                    ),
+                ),
+            )
+
+            with mock.patch.object(
+                run_issue_queue,
+                "fetch_open_issues",
+                return_value=(),
+            ) as fetch_open_issues, mock.patch.object(
+                run_issue_queue,
+                "fetch_issues_by_number",
+                return_value=(issue,),
+            ) as fetch_issues_by_number, mock.patch(
+                "sys.stdout",
+                new_callable=io.StringIO,
+            ) as stdout:
+                exit_code = run_issue_queue.main(
+                    [
+                        "--repo",
+                        "OWNER/REPO",
+                        "--compact",
+                        "--assignment-state",
+                        str(assignment_state),
+                        "--output",
+                        str(output),
+                        "--queue-dir",
+                        str(root / "queue"),
+                        "--pending-dir",
+                        str(pending_dir),
+                        "--archive-dir",
+                        str(archive_dir),
+                    ]
+                )
+                summary = json.loads(stdout.getvalue())
+                pending_exists_after = pending_path.exists()
+                archive_exists_after = archive_dir.exists()
+
+        self.assertEqual(0, exit_code)
+        fetch_open_issues.assert_called_once_with("OWNER/REPO", limit=100, gh_bin="gh")
+        fetch_issues_by_number.assert_called_once_with(
+            "OWNER/REPO",
+            (9,),
+            gh_bin="gh",
+        )
+        self.assertFalse(pending_exists_after)
+        self.assertTrue(archive_exists_after)
+        self.assertEqual("checked", summary["pending_issue_check"]["status"])
+        self.assertEqual([9], summary["pending_issue_check"]["issue_numbers"])
+        self.assertEqual(1, summary["pending_issue_check"]["fetched_count"])
+        self.assertEqual(1, summary["archive"]["archived_count"])
+        self.assertEqual(
+            "done_marker_closed_issue",
+            summary["archive"]["items"][0]["reason"],
+        )
+
+    def test_real_run_keeps_pending_when_closed_issue_check_fails(self) -> None:
+        fingerprint = "issue-10-body-sha256-fetch-failed"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            assignment_state = root / "assignment_state.json"
+            output = root / "open_issues.json"
+            pending_dir = root / "pending"
+            archive_dir = root / "archive"
+            pending_path = pending_dir / f"{WORKER_SESSION_ID}_{fingerprint}.md"
+            _write_assignment_state(assignment_state)
+            _write_pending_event(pending_path, fingerprint)
+
+            with mock.patch.object(
+                run_issue_queue,
+                "fetch_open_issues",
+                return_value=(),
+            ) as fetch_open_issues, mock.patch.object(
+                run_issue_queue,
+                "fetch_issues_by_number",
+                side_effect=GitHubFetchError("not visible"),
+            ) as fetch_issues_by_number, mock.patch(
+                "sys.stdout",
+                new_callable=io.StringIO,
+            ) as stdout:
+                exit_code = run_issue_queue.main(
+                    [
+                        "--repo",
+                        "OWNER/REPO",
+                        "--compact",
+                        "--assignment-state",
+                        str(assignment_state),
+                        "--output",
+                        str(output),
+                        "--queue-dir",
+                        str(root / "queue"),
+                        "--pending-dir",
+                        str(pending_dir),
+                        "--archive-dir",
+                        str(archive_dir),
+                    ]
+                )
+                summary = json.loads(stdout.getvalue())
+                pending_exists_after = pending_path.exists()
+
+        self.assertEqual(0, exit_code)
+        fetch_open_issues.assert_called_once_with("OWNER/REPO", limit=100, gh_bin="gh")
+        fetch_issues_by_number.assert_called_once_with(
+            "OWNER/REPO",
+            (10,),
+            gh_bin="gh",
+        )
+        self.assertTrue(pending_exists_after)
+        self.assertEqual("failed", summary["pending_issue_check"]["status"])
+        self.assertEqual([10], summary["pending_issue_check"]["issue_numbers"])
+        self.assertIn("not visible", summary["pending_issue_check"]["error"])
+        self.assertEqual(0, summary["archive"]["archived_count"])
+        self.assertEqual(1, summary["archive"]["kept_pending_count"])
 
     def test_dry_run_without_repo_keeps_fixture_default(self) -> None:
         with mock.patch.object(

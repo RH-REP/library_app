@@ -29,13 +29,14 @@ WORKER_SESSION_ID = "22222222-2222-4222-8222-222222222222"
 def _issue(
     number: int,
     *,
+    state: str = "open",
     title: str = "Test issue",
     body: str = "Issue body",
     comments: tuple[IssueComment, ...] = (),
 ) -> IssueSnapshot:
     return IssueSnapshot(
         issue_number=number,
-        issue_state="open",
+        issue_state=state,
         issue_url=f"https://example.invalid/issues/{number}",
         title=title,
         body=body,
@@ -98,6 +99,18 @@ class QueueingTests(unittest.TestCase):
         self.assertEqual(tuple(event.trigger_fingerprint for event in events), tuple(
             event.trigger_fingerprint for event in collect_issue_events((issue,))
         ))
+
+    def test_closed_issues_do_not_create_queue_records(self) -> None:
+        issue = _issue(
+            6,
+            state="closed",
+            body="This closed issue must not be queued again.",
+            comments=(_comment("C6", "Closed issue follow-up"),),
+        )
+
+        records = build_queue_records((issue,), _assignment_state())
+
+        self.assertEqual((), records)
 
     def test_build_queue_records_routes_worker_router_and_skips_duplicates(self) -> None:
         issue_one = _issue(1, title="New artifact", body="new body")

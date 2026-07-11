@@ -17,7 +17,9 @@ if str(LIB_DIR) not in sys.path:
     sys.path.insert(0, str(LIB_DIR))
 
 from artifactforge_dispatch_v1.github_client import (  # noqa: E402
+    GitHubFetchError,
     GitHubRepoInferenceError,
+    fetch_issues_by_number,
     fetch_open_issues,
     infer_repo_from_origin_remote,
     read_issue_snapshots,
@@ -26,6 +28,8 @@ from artifactforge_dispatch_v1.github_client import (  # noqa: E402
 from artifactforge_dispatch_v1.lifecycle import (  # noqa: E402
     lifecycle_summary_to_dict,
     reconcile_pending_from_issues,
+    reconcile_pending_with_issue_snapshots,
+    unresolved_pending_issue_numbers,
 )
 from artifactforge_dispatch_v1.queueing import (  # noqa: E402
     ARCHIVE_STATUSES,
@@ -295,6 +299,27 @@ def issue_count_summary(issues: Iterable[Any]) -> dict[str, int]:
     }
 
 
+def pending_issue_check_to_dict(
+    *,
+    issue_numbers: Iterable[int],
+    fetched_count: int = 0,
+    error: str | None = None,
+) -> dict[str, object]:
+    number_tuple = tuple(issue_numbers)
+    if error:
+        status = "failed"
+    elif not number_tuple:
+        status = "not_needed"
+    else:
+        status = "checked"
+    return {
+        "status": status,
+        "issue_numbers": list(number_tuple),
+        "fetched_count": fetched_count,
+        "error": error,
+    }
+
+
 def _divider() -> str:
     return "-------"
 
@@ -478,6 +503,30 @@ def main(argv: list[str] | None = None) -> int:
         archive_dir=args.archive_dir,
         dry_run=args.dry_run,
     )
+    pending_issue_numbers = unresolved_pending_issue_numbers(lifecycle.results)
+    pending_issue_check = pending_issue_check_to_dict(issue_numbers=pending_issue_numbers)
+    if pending_issue_numbers and issue_source == "github":
+        try:
+            pending_issues = fetch_issues_by_number(
+                repo,
+                pending_issue_numbers,
+                gh_bin=args.gh_bin,
+            )
+            lifecycle = reconcile_pending_with_issue_snapshots(
+                lifecycle,
+                pending_issues,
+                archive_dir=args.archive_dir,
+                dry_run=args.dry_run,
+            )
+            pending_issue_check = pending_issue_check_to_dict(
+                issue_numbers=pending_issue_numbers,
+                fetched_count=len(pending_issues),
+            )
+        except GitHubFetchError as exc:
+            pending_issue_check = pending_issue_check_to_dict(
+                issue_numbers=pending_issue_numbers,
+                error=str(exc),
+            )
     records = build_queue_records(
         issues,
         assignment_state,
@@ -499,6 +548,7 @@ def main(argv: list[str] | None = None) -> int:
         "snapshot_output": str(Path(args.output)) if snapshot_written else None,
         "counts": issue_count_summary(issues),
         "archive": lifecycle_summary_to_dict(lifecycle),
+        "pending_issue_check": pending_issue_check,
         "queue": queue_results_to_dict(queue_results),
         "effects": {
             "github_fetch": "called" if issue_source == "github" else "not_called",
