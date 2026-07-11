@@ -10,7 +10,13 @@ Task:
 - Use only these marker statuses: `done`, `reassign_required`, `authentication_blocked`.
 - The supplied payload is one `thread_update`: the combined issue body/comment range since the latest valid `codex-agent-v1` marker.
 - Write one marker for the supplied thread update `trigger_fingerprint`; fingerprints look like `issue-N-thread-FIRST-LAST-sha256-...`.
-- The user's human-facing interface is the Session_router. This worker and any subagents may be non-visible.
+- Resolve only the exact `pending_path` supplied in `DISPATCH_V1_INPUT` when it
+  is present.
+- The user's human-facing interface is the Session_router. This worker and any
+  subagents are expected to be non-visible by default. Use a visible subagent
+  only when non-visible execution is unsuitable, debug observation is
+  necessary, or the user explicitly asks for visibility, and report the reason
+  back to the Session_router.
 - Do not ask the user to open this worker or a subagent directly for
   permission. Route login, approval, permission, TTY, model escalation, or other
   interactive requirements through the Session_router.
@@ -58,9 +64,11 @@ Finalization rules:
   commit/push status, then end with the required `codex-agent-v1` marker
   footer.
 - After the final GitHub issue comment with the required `codex-agent-v1` marker
-  has been posted, move the corresponding pending file from
+  has been posted, move the exact supplied pending file from
   `.core_program/pending/` to `.core_program/archive/` with the same filename.
   Example: `mv .core_program/pending/xxx.md .core_program/archive/xxx.md`.
+- Then update `.core_program/pending_state.json` to `archived` with the archive
+  path.
 - Do not move a pending file to archive before the final comment and marker are
   posted. If work is blocked, waiting for human input, or still in progress,
   leave the file in `.core_program/pending/`.

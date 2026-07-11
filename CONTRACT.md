@@ -85,6 +85,11 @@ It is for explanations that should remain understandable without inspecting
 state, prompts, queue files, pending files, archives, assignment state, and
 diagnostics.
 
+Pending orchestration state belongs in `.core_program/pending_state.json`. It
+is a machine-readable ledger used by the Session_router to distinguish unsent,
+dispatched/in-progress, deferred, blocked, human-waiting, superseded, and
+archived pending records.
+
 Normal project requirements and human-facing issue decisions do not belong in
 `.core_program/`.
 

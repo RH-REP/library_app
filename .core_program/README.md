@@ -115,24 +115,27 @@ authentication_blocked
 
 `recipient_role: router` is the single visible Session_router. It routes only;
 it does not do worker implementation work. It reads `.core_program/pending/`,
-uses `assignment_state.json` as advisory routing state, prefers existing
-workers, avoids `previous_thread_id` on `reassign_required`, starts a new worker
-only when no existing worker accepts, dispatches the worker-mode prompt directly
-to the selected worker, prevents concurrent prompts to the same worker, and
+uses `pending_state.json` as the machine-readable pending ledger, uses
+`assignment_state.json` as advisory routing state, prefers existing workers,
+avoids `previous_thread_id` on `reassign_required`, starts a new worker only
+when no existing worker accepts, dispatches the worker-mode prompt directly to
+the selected worker, prevents concurrent prompts to the same worker, and
 updates `assignment_state.json` with the worker session, sub-artifact path,
 status, and concise workstream summary.
 
 The Session_router is the user's human-facing permission gateway. Worker and
-subagent sessions may be non-visible or visible as needed. If a subagent
-hits login, approval, permission, TTY, model escalation, or other interactive
-requirements, the request must be surfaced through the Session_router instead
-of asking the user to open that subagent session directly. Workers and subagents
-may receive permissions/capabilities the Session_router already has when the
-pending task needs them and the action stays within this repository/project
-scope; new permissions or broader capabilities still require user approval
-through the Session_router. Workers and subagents use GPT-5.4-high by
-default and escalate to GPT-5.5-high only when the work justifies the stronger
-model.
+subagent sessions are non-visible by default. A visible child session is used
+only when non-visible execution is unsuitable, debug observation is necessary,
+or the user explicitly asks for visibility; the router records the reason when
+that happens. If a subagent hits login, approval, permission, TTY, model
+escalation, or other interactive requirements, the request must be surfaced
+through the Session_router instead of asking the user to open that subagent
+session directly. Workers and subagents may receive permissions/capabilities the
+Session_router already has when the pending task needs them and the action stays
+within this repository/project scope; new permissions or broader capabilities
+still require user approval through the Session_router. Workers and subagents
+use GPT-5.4-high by default and escalate to GPT-5.5-high only when the work
+justifies the stronger model.
 
 Normal final GitHub issue comments are posted by the assigned worker. The
 exception is a contract-violation bug report: if the Session_router discovers
@@ -174,9 +177,32 @@ All diagnostics must go to internal logs, stderr, or operator summaries.
 ## Pending Rule
 
 Python dispatch does not wait for completion. It moves unresolved queue records
-to pending before invoking the Session_router. The Session_router reads pending
-records and dispatches eligible work to workers. When the pending work is
-resolved and the final GitHub issue comment with the required
+to pending before invoking the Session_router. The Session_router checks
+`.core_program/request_for_human/` first, then reads `.core_program/pending/`
+and `.core_program/pending_state.json`, and processes pending records in
+deterministic path order until no dispatchable pending record remains. It does
+not stop after one pending item unless all remaining records are deferred,
+blocked, human-waiting, superseded, archived, or already
+dispatched/in-progress.
+
+Pending state is stored in `.core_program/pending_state.json` with
+machine-readable records containing `pending_path`, `trigger_fingerprint`,
+`worker_session_id`, `status`, timestamps, and a reason where relevant. Valid
+statuses are:
+
+```text
+unsent
+router_notified
+dispatched
+deferred
+blocked
+human_waiting
+superseded
+archived
+```
+
+When the pending work is resolved and the final GitHub issue comment with the
+required
 `codex-agent-v1` marker has been posted, the corresponding pending file is
 moved to archive with the same filename:
 
@@ -187,9 +213,16 @@ mv .core_program/pending/xxx.md .core_program/archive/xxx.md
 Blocked, deferred, human-waiting, or in-progress records stay in
 `.core_program/pending/`.
 
+Older pending files that are covered by a newer `thread_update` starting at the
+same issue/comment source are superseded. They must not be dispatched as
+independent current work; when safe, they are moved to archive and marked
+`superseded` in `pending_state.json`.
+
 Pending records must distinguish router-visible unresolved work from worker
 work that has already been dispatched. The Session_router uses pending state to
-avoid sending concurrent prompts to the same worker.
+avoid sending concurrent prompts to the same worker. If multiple pending
+records map to the same worker, the router dispatches one and leaves the rest
+deferred until that worker resolves the active record.
 
 Before reading pending records, the Session_router checks
 `.core_program/request_for_human/` for unresolved human request memos.
@@ -272,10 +305,11 @@ reused by later runs.
 The second command moves queued records into `.core_program/pending/` and
 invokes or wakes the single visible Session_router. It does not send worker
 prompts and does not perform worker busy checks. The Session_router reads
-pending records, assigns work, starts or resumes non-visible/visible workers as
-needed, and treats every worker session ID as a single-lane resource. If pending
-state or known active prompt state shows unresolved work for a target worker,
-the router defers additional prompts for that worker.
+pending records, assigns work, starts or resumes non-visible workers by
+default, and treats every worker session ID as a single-lane resource. If a
+visible worker is necessary, the router records why. If pending state or known
+active prompt state shows unresolved work for a target worker, the router
+defers additional prompts for that worker.
 
 The dispatcher itself does not post comments, commit, or push. The worker-role
 prompt requires the assigned worker to commit intended repository changes, push

@@ -19,12 +19,24 @@ Task:
 - Read `.core_program/pending/` as the source of unresolved work. Each pending
   record is one `thread_update`: the combined issue body/comment range since
   the latest valid `codex-agent-v1` marker.
+- Read `.core_program/pending_state.json` when present. It is the
+  machine-readable status ledger for pending files. Valid statuses are
+  `unsent`, `router_notified`, `dispatched`, `deferred`, `blocked`,
+  `human_waiting`, `superseded`, and `archived`.
+- Process pending records in deterministic path order. Continue dispatching
+  eligible records until no dispatchable pending record remains. Do not stop
+  after only one pending item unless all remaining records are deferred,
+  blocked, human-waiting, superseded, archived, or already
+  dispatched/in-progress.
 - Do not split a `thread_update` into separate issue body/comment records.
 - Route each eligible pending `thread_update` to exactly one existing or newly
   created Codex worker session.
 - Do not do the worker task.
-- Worker and subagent sessions may be non-visible or visible as needed, but
-  this Session_router remains the sole user-facing question/permission surface.
+- Worker and subagent sessions are non-visible by default. Start or resume a
+  visible child session only when non-visible execution is unsuitable, debug
+  observation is necessary, or the user explicitly asks for visibility. Record
+  the reason in the routing note/state when you do this.
+- This Session_router remains the sole user-facing question/permission surface.
 - If a worker or subagent requires login, approval, permission, TTY, model
   escalation, or other interactive intervention, request that permission from
   the user through this Session_router and then resume the subagent.
@@ -44,8 +56,9 @@ Task:
 - If the mapped sub-artifact has an active session ID, do not start a new
   session unless the worker rejects the assignment or is no longer usable.
 - If the mapped sub-artifact is known but inactive, or the issue needs a
-  completely new sub-artifact, actually start a new Codex worker session,
-  visible or non-visible as appropriate. Do not merely choose or invent an ID.
+  completely new sub-artifact, actually start a new non-visible Codex worker
+  session by default. Use a visible worker only under the visibility exception
+  above. Do not merely choose or invent an ID.
 - Use GPT-5.4-high as the default worker model. Escalate to GPT-5.5-high only
   when task complexity, repeated failure, verification risk, or a user-approved
   need justifies the stronger model.
@@ -53,6 +66,14 @@ Task:
   known active prompt state for that worker. Never send concurrent prompts to
   the same worker. Leave additional work pending/deferred until the existing
   prompt is resolved.
+- Before sending a worker prompt, update `.core_program/pending_state.json` for
+  that exact pending file to `dispatched`, including `pending_path`,
+  `trigger_fingerprint`, `worker_session_id`, timestamp, and reason.
+- If a pending file cannot be sent now, update `.core_program/pending_state.json`
+  to `deferred`, `blocked`, `human_waiting`, or `superseded` with the reason.
+- Do not dispatch superseded older pending records. A newer `thread_update`
+  covering the same issue/comment range supersedes older records that start at
+  the same source.
 - Dispatch the worker-mode ArtifactForge Dispatch Prompt v1 directly to the
   selected worker session. Do not write a worker-mode queue file for a Python
   dispatcher to deliver later.
@@ -103,6 +124,8 @@ Worker session ID:
   required `codex-agent-v1` marker has been posted, move the corresponding file
   from `.core_program/pending/` to `.core_program/archive/` with the same
   filename. Example: `mv .core_program/pending/xxx.md .core_program/archive/xxx.md`.
+- Then update `.core_program/pending_state.json` to `archived` with the archive
+  path.
 - Do not move a pending file to archive before the final comment and marker are
   posted. If work is blocked, deferred, waiting for human input, or still in
   progress, leave the file in `.core_program/pending/`.

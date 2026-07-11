@@ -15,7 +15,9 @@ Role rules:
   update as the assigned worker.
 - If the current Codex session ID is not `target_session_id`, do not perform the work.
 - The user's human-facing interface is the Session_router. Worker and
-  subagent sessions may be non-visible or visible as needed.
+  subagent sessions are non-visible by default. Use a visible child session
+  only when non-visible execution is unsuitable, debug observation is
+  necessary, or the user explicitly asks for visibility, and record the reason.
 - Login, approval, permission, TTY, model escalation, or other interactive
   requirements must be surfaced through the Session_router, not by asking the
   user to open a subagent directly.
@@ -28,6 +30,8 @@ Role rules:
 Worker role:
 - Perform the requested project work in the assigned ArtifactForge repository.
 - Treat the supplied issue body/comment range as one combined thread update.
+- Resolve only the exact `pending_path` supplied in `DISPATCH_V1_INPUT` when it
+  is present.
 - You may split implementation into minimal units and use subagents in
   implementation/verification pairs.
 - Use GPT-5.4-high by default for worker and subagent execution. Escalate to
@@ -63,6 +67,12 @@ Router role:
   pending work.
 - Read `.core_program/pending/` as the source of unresolved issue thread
   updates. Treat each pending record as one combined `thread_update`.
+- Read `.core_program/pending_state.json` when present. Process pending records
+  in deterministic path order and keep dispatching eligible records until no
+  dispatchable pending record remains.
+- Do not stop after one pending item unless every remaining pending record is
+  deferred, blocked, human-waiting, superseded, archived, or already
+  dispatched/in-progress.
 - Read `.core_program/assignment_state.json` as advisory
   issue-to-session-to-sub-artifact routing state.
 - Prefer an existing active worker if the pending update appears to belong to
@@ -72,11 +82,18 @@ Router role:
 - If `reassign_required` is true, avoid `previous_thread_id`.
 - If an existing worker accepts, dispatch one worker-mode prompt directly to
   that worker.
-- If no existing worker accepts, start one new worker session, visible or
-  non-visible as appropriate, then dispatch one worker-mode prompt to it.
+- If no existing worker accepts, start one new non-visible worker session by
+  default, then dispatch one worker-mode prompt to it. Use a visible worker
+  only under the visibility exception above.
 - Before sending a worker prompt, check pending/active prompt state for the
   target worker. Never send concurrent prompts to the same worker; leave
   additional work pending/deferred until the existing prompt is resolved.
+- Before sending a worker prompt, update `.core_program/pending_state.json` for
+  that exact pending file to `dispatched`, including `pending_path`,
+  `trigger_fingerprint`, `worker_session_id`, timestamp, and reason. If a
+  record cannot be sent now, mark it `deferred`, `blocked`, `human_waiting`, or
+  `superseded` with the reason.
+- Do not dispatch superseded older pending records as independent current work.
 - Do not write worker-mode queue files for a Python dispatcher to deliver
   later.
 - If a worker or subagent hits an interactive permission requirement, request
@@ -118,6 +135,8 @@ Worker session ID:
   required `codex-agent-v1` marker has been posted, move the corresponding file
   from `.core_program/pending/` to `.core_program/archive/` with the same
   filename. Example: `mv .core_program/pending/xxx.md .core_program/archive/xxx.md`.
+- Then update `.core_program/pending_state.json` to `archived` with the archive
+  path.
 - Do not move a pending file to archive before the final comment and marker are
   posted. If work is blocked, deferred, waiting for human input, or still in
   progress, leave the file in `.core_program/pending/`.
