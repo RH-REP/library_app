@@ -20,3 +20,9 @@
 - `.core_program/assignment_state.json` の issue #2 sub artifact path を更新した。
 - `main_artifact/lib/readme.md` を追加した。
 - `demo.html` を `main_artifact/lib/readme.md` のみを表示する構成に絞り、実際の lib 参照に合わせた。
+
+## 2026-07-11 follow-up
+
+- 追加コメント「GitHub で誰でも確認できる方法がよい」を受領した。
+- GitHub Pages 用に `docs/` 配下へ demo viewer と `readme.md` の公開コピーを作成した。
+- `docs/index.html` を追加し、Pages のルートから demo viewer へ遷移するようにした。

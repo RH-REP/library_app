@@ -1,0 +1,1386 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Library Knowledge Demo</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #17191c;
+        --panel: #22262b;
+        --panel-strong: #2b3036;
+        --panel-soft: #1c2024;
+        --line: #3a4149;
+        --line-soft: #2f363d;
+        --text: #eceff2;
+        --muted: #aab3bd;
+        --muted-2: #7f8a95;
+        --accent: #4fb286;
+        --accent-soft: rgba(79, 178, 134, .17);
+        --amber: #d7ba7d;
+        --danger: #d86f6f;
+        --focus: #66a9e8;
+        --code: #111315;
+        --shadow: 0 20px 60px rgba(0, 0, 0, .28);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+      }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+      }
+
+      button {
+        color: inherit;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: .5;
+      }
+
+      .app-shell {
+        display: grid;
+        grid-template-columns: clamp(280px, 25vw, 420px) minmax(0, 1fr);
+        height: 100dvh;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .sidebar {
+        min-width: 0;
+        min-height: 0;
+        display: grid;
+        grid-template-rows: auto auto auto minmax(0, 1fr);
+        background: var(--panel);
+        border-right: 1px solid var(--line);
+        overflow: hidden;
+      }
+
+      .workspace-bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 44px;
+        padding: 0 12px;
+        border-bottom: 1px solid var(--line-soft);
+        background: var(--panel-soft);
+      }
+
+      .workspace-mark {
+        width: 18px;
+        height: 18px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 3px;
+        flex: 0 0 auto;
+      }
+
+      .workspace-mark span {
+        border: 1px solid rgba(236, 239, 242, .42);
+        background: rgba(79, 178, 134, .2);
+      }
+
+      .workspace-title {
+        min-width: 0;
+        flex: 1 1 auto;
+        font-size: 12px;
+        font-weight: 700;
+        color: #d9dee3;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .icon-button {
+        width: 30px;
+        height: 30px;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        display: inline-grid;
+        place-items: center;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+      }
+
+      .icon-button:hover:not(:disabled),
+      .icon-button.is-active {
+        color: var(--text);
+        background: #343b43;
+        border-color: #46505a;
+      }
+
+      .icon-button.primary {
+        color: #effff8;
+        background: #2a664e;
+        border-color: rgba(79, 178, 134, .75);
+      }
+
+      .icon-button svg {
+        width: 17px;
+        height: 17px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .filter-panel {
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+        border-bottom: 1px solid var(--line-soft);
+      }
+
+      .search-wrap {
+        position: relative;
+      }
+
+      .search-wrap svg {
+        position: absolute;
+        top: 50%;
+        left: 10px;
+        width: 16px;
+        height: 16px;
+        transform: translateY(-50%);
+        color: var(--muted-2);
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.9;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        pointer-events: none;
+      }
+
+      .search-input,
+      .filter-select,
+      .text-editor {
+        width: 100%;
+        border: 1px solid #434b54;
+        border-radius: 6px;
+        background: #171a1e;
+        color: var(--text);
+        outline: 0;
+      }
+
+      .search-input {
+        height: 34px;
+        padding: 0 10px 0 34px;
+      }
+
+      .search-input:focus,
+      .filter-select:focus,
+      .text-editor:focus {
+        border-color: var(--focus);
+        box-shadow: 0 0 0 2px rgba(102, 169, 232, .22);
+      }
+
+      .filter-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .filter-select {
+        height: 32px;
+        padding: 0 8px;
+        color: #d7dde3;
+      }
+
+      .toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        min-height: 28px;
+      }
+
+      .toggle-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        color: var(--muted);
+        font-size: 12px;
+        user-select: none;
+      }
+
+      .toggle-label input {
+        width: 15px;
+        height: 15px;
+        margin: 0;
+        accent-color: var(--accent);
+      }
+
+      .match-count {
+        color: var(--muted-2);
+        font-size: 12px;
+        white-space: nowrap;
+      }
+
+      .tree-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        min-height: 34px;
+        padding: 0 12px;
+        border-bottom: 1px solid var(--line-soft);
+        background: #242930;
+        color: #d8dee5;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .tree {
+        min-height: 0;
+        overflow: auto;
+        padding: 6px 6px 16px;
+      }
+
+      .tree-item {
+        width: 100%;
+        min-height: 30px;
+        display: grid;
+        grid-template-columns: 18px 18px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        padding: 3px 8px 3px calc(8px + var(--depth) * 16px);
+        background: transparent;
+        color: var(--muted);
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .tree-item:hover,
+      .tree-item.is-selected {
+        color: var(--text);
+        background: #30363d;
+      }
+
+      .tree-item.is-selected {
+        border-color: rgba(79, 178, 134, .72);
+        background: var(--accent-soft);
+      }
+
+      .tree-expander {
+        width: 16px;
+        height: 16px;
+        display: grid;
+        place-items: center;
+        color: var(--muted-2);
+      }
+
+      .tree-expander svg,
+      .tree-icon svg {
+        width: 15px;
+        height: 15px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.9;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .tree-icon {
+        color: var(--amber);
+      }
+
+      .tree-icon.file {
+        color: #8cc8ff;
+      }
+
+      .tree-name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .kind-pill {
+        min-width: 36px;
+        border: 1px solid rgba(170, 179, 189, .22);
+        border-radius: 999px;
+        padding: 1px 7px;
+        color: var(--muted);
+        font-size: 11px;
+        text-align: center;
+      }
+
+      .content {
+        min-width: 0;
+        min-height: 0;
+        display: grid;
+        grid-template-rows: auto auto minmax(0, 1fr);
+        background: #191c20;
+        overflow: hidden;
+      }
+
+      .tab-strip {
+        display: flex;
+        align-items: end;
+        min-height: 38px;
+        padding: 0 12px;
+        border-bottom: 1px solid var(--line-soft);
+        background: #15181b;
+      }
+
+      .tab {
+        min-width: 130px;
+        max-width: 360px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid var(--line-soft);
+        border-bottom-color: #191c20;
+        border-radius: 6px 6px 0 0;
+        padding: 0 11px;
+        background: #191c20;
+        color: var(--text);
+        font-size: 13px;
+      }
+
+      .tab span {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .document-bar {
+        min-height: 76px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 16px;
+        padding: 12px 18px;
+        border-bottom: 1px solid var(--line-soft);
+        background: #1d2126;
+      }
+
+      .document-title-wrap {
+        min-width: 0;
+      }
+
+      .document-title {
+        margin: 0;
+        color: var(--text);
+        font-size: 20px;
+        font-weight: 700;
+        line-height: 1.25;
+        overflow-wrap: anywhere;
+      }
+
+      .document-path {
+        margin-top: 4px;
+        color: var(--muted-2);
+        font-size: 12px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .document-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+
+      .segmented {
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid #424a52;
+        border-radius: 7px;
+        overflow: hidden;
+      }
+
+      .segment-button {
+        width: 34px;
+        height: 30px;
+        border: 0;
+        border-right: 1px solid #424a52;
+        display: inline-grid;
+        place-items: center;
+        background: #20252a;
+        color: var(--muted);
+        cursor: pointer;
+      }
+
+      .segment-button:last-child {
+        border-right: 0;
+      }
+
+      .segment-button:hover:not(:disabled),
+      .segment-button.is-active {
+        color: var(--text);
+        background: #35404a;
+      }
+
+      .segment-button svg {
+        width: 16px;
+        height: 16px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .viewer {
+        min-height: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(320px, .85fr);
+        overflow: hidden;
+      }
+
+      .viewer.preview-only {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .viewer.edit-only {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .preview-pane,
+      .edit-pane {
+        min-width: 0;
+        min-height: 0;
+        overflow: auto;
+      }
+
+      .preview-pane {
+        padding: 22px 26px 80px;
+      }
+
+      .edit-pane {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        border-left: 1px solid var(--line-soft);
+        background: #15181b;
+      }
+
+      .edit-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        min-height: 42px;
+        padding: 0 12px;
+        border-bottom: 1px solid var(--line-soft);
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .edit-state {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .text-editor {
+        min-height: 0;
+        resize: none;
+        border: 0;
+        border-radius: 0;
+        padding: 18px;
+        background: #121416;
+        color: #e9edf1;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 13px;
+        line-height: 1.65;
+      }
+
+      .text-editor:focus {
+        box-shadow: none;
+      }
+
+      .markdown {
+        max-width: 920px;
+      }
+
+      .markdown h1,
+      .markdown h2,
+      .markdown h3 {
+        margin: 1.2em 0 .55em;
+        color: #f3f6f9;
+        line-height: 1.28;
+      }
+
+      .markdown h1:first-child,
+      .markdown h2:first-child,
+      .markdown h3:first-child {
+        margin-top: 0;
+      }
+
+      .markdown h1 {
+        font-size: 28px;
+      }
+
+      .markdown h2 {
+        font-size: 21px;
+      }
+
+      .markdown h3 {
+        font-size: 16px;
+      }
+
+      .markdown p {
+        margin: .7em 0;
+        color: #dce2e8;
+      }
+
+      .markdown ul,
+      .markdown ol {
+        margin: .65em 0 .9em;
+        padding-left: 1.4em;
+      }
+
+      .markdown li {
+        margin: .26em 0;
+      }
+
+      .markdown code {
+        border: 1px solid #303941;
+        border-radius: 4px;
+        padding: .1em .35em;
+        background: var(--code);
+        color: #e9d9a8;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: .92em;
+      }
+
+      .markdown pre {
+        overflow: auto;
+        border: 1px solid #303941;
+        border-radius: 7px;
+        padding: 14px;
+        background: var(--code);
+        box-shadow: var(--shadow);
+      }
+
+      .markdown pre code {
+        border: 0;
+        padding: 0;
+        background: transparent;
+        color: #e9edf1;
+      }
+
+      .markdown blockquote {
+        margin: 1em 0;
+        border-left: 3px solid var(--accent);
+        padding: .25em 0 .25em 1em;
+        color: #cfd6dd;
+        background: rgba(79, 178, 134, .08);
+      }
+
+      .metadata-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        margin: 0 0 16px;
+      }
+
+      .badge {
+        border: 1px solid rgba(170, 179, 189, .25);
+        border-radius: 999px;
+        padding: 2px 8px;
+        color: var(--muted);
+        background: rgba(255, 255, 255, .03);
+        font-size: 12px;
+      }
+
+      .badge.accent {
+        color: #dffff2;
+        border-color: rgba(79, 178, 134, .45);
+        background: rgba(79, 178, 134, .13);
+      }
+
+      .asset-preview {
+        max-width: 900px;
+        border: 1px solid var(--line-soft);
+        border-radius: 8px;
+        overflow: hidden;
+        background: #101214;
+        box-shadow: var(--shadow);
+      }
+
+      .asset-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 42px;
+        padding: 0 12px;
+        border-bottom: 1px solid var(--line-soft);
+        background: #20252a;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .pdf-page {
+        margin: 22px auto;
+        width: min(600px, calc(100% - 32px));
+        aspect-ratio: 1 / 1.34;
+        border: 1px solid #d5dbe2;
+        border-radius: 3px;
+        padding: 34px;
+        background: #eef2f5;
+        color: #1c232b;
+      }
+
+      .pdf-line {
+        height: 10px;
+        margin-bottom: 13px;
+        border-radius: 99px;
+        background: #9aa7b5;
+      }
+
+      .pdf-line.short {
+        width: 62%;
+      }
+
+      .pdf-line.mid {
+        width: 78%;
+      }
+
+      .image-stage {
+        display: grid;
+        place-items: center;
+        min-height: 360px;
+        padding: 24px;
+        background:
+          linear-gradient(135deg, rgba(79, 178, 134, .22), transparent 34%),
+          linear-gradient(315deg, rgba(215, 186, 125, .2), transparent 38%),
+          #161a1f;
+      }
+
+      .image-mock {
+        width: min(620px, 100%);
+        aspect-ratio: 16 / 10;
+        border: 1px solid rgba(236, 239, 242, .22);
+        border-radius: 8px;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, .12), transparent 42%),
+          linear-gradient(135deg, #43556b, #2d493d 50%, #6b5942);
+        box-shadow: 0 18px 50px rgba(0, 0, 0, .32);
+      }
+
+      .empty-state {
+        display: grid;
+        place-items: center;
+        min-height: 100%;
+        padding: 24px;
+        color: var(--muted);
+        text-align: center;
+      }
+
+      .empty-state strong {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--text);
+      }
+
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+
+      @media (max-width: 980px) {
+        .filter-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .viewer {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .edit-pane {
+          border-top: 1px solid var(--line-soft);
+          border-left: 0;
+        }
+      }
+
+      @media (max-width: 760px) {
+        body {
+          overflow: auto;
+        }
+
+        .app-shell {
+          grid-template-columns: 1fr;
+          grid-template-rows: minmax(280px, 42dvh) minmax(460px, 58dvh);
+          height: auto;
+          min-height: 100dvh;
+          overflow: visible;
+        }
+
+        .sidebar,
+        .content {
+          min-height: 0;
+        }
+
+        .document-bar {
+          grid-template-columns: 1fr;
+          align-items: stretch;
+        }
+
+        .document-actions {
+          justify-content: flex-start;
+          flex-wrap: wrap;
+        }
+
+        .viewer {
+          min-height: 560px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="フォルダツリー">
+        <div class="workspace-bar">
+          <div class="workspace-mark" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+          <div class="workspace-title">my knowledge</div>
+          <button id="expandAllButton" class="icon-button" type="button" title="Expand All" aria-label="Expand All">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h16"/><path d="M4 15h16"/><path d="m8 5 4 4 4-4"/><path d="m8 19 4-4 4 4"/></svg>
+          </button>
+          <button id="collapseAllButton" class="icon-button" type="button" title="Collapse All" aria-label="Collapse All">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h16"/><path d="M4 15h16"/><path d="m8 9 4-4 4 4"/><path d="m8 15 4 4 4-4"/></svg>
+          </button>
+        </div>
+
+        <div class="filter-panel">
+          <label class="search-wrap" for="searchInput">
+            <span class="visually-hidden">Search</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg>
+            <input id="searchInput" class="search-input" type="search" autocomplete="off" placeholder="Search">
+          </label>
+          <div class="filter-grid">
+            <label>
+              <span class="visually-hidden">Kind</span>
+              <select id="kindFilter" class="filter-select" aria-label="Kind"></select>
+            </label>
+            <label>
+              <span class="visually-hidden">Tag</span>
+              <select id="tagFilter" class="filter-select" aria-label="Tag"></select>
+            </label>
+            <label>
+              <span class="visually-hidden">Status</span>
+              <select id="statusFilter" class="filter-select" aria-label="Status"></select>
+            </label>
+          </div>
+          <div class="toggle-row">
+            <label class="toggle-label">
+              <input id="markdownOnly" type="checkbox">
+              <span>Markdown</span>
+            </label>
+            <span id="matchCount" class="match-count"></span>
+          </div>
+        </div>
+
+        <div class="tree-heading">
+          <span>Explorer</span>
+          <span id="selectedKind" class="match-count"></span>
+        </div>
+        <nav id="tree" class="tree" aria-label="Explorer"></nav>
+      </aside>
+
+      <main class="content">
+        <div class="tab-strip">
+          <div class="tab">
+            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 2v6h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            <span id="activeTab">README.md</span>
+          </div>
+        </div>
+
+        <header class="document-bar">
+          <div class="document-title-wrap">
+            <h1 id="documentTitle" class="document-title"></h1>
+            <div id="documentPath" class="document-path"></div>
+          </div>
+          <div class="document-actions">
+            <div class="segmented" aria-label="View mode">
+              <button id="previewModeButton" class="segment-button" type="button" title="Preview" aria-label="Preview">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+              <button id="splitModeButton" class="segment-button" type="button" title="Split" aria-label="Split">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M12 5v14"/></svg>
+              </button>
+              <button id="editModeButton" class="segment-button" type="button" title="Edit" aria-label="Edit">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+              </button>
+            </div>
+            <button id="saveButton" class="icon-button primary" type="button" title="Save" aria-label="Save" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>
+            </button>
+            <button id="cancelButton" class="icon-button" type="button" title="Cancel" aria-label="Cancel" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+          </div>
+        </header>
+
+        <section id="viewer" class="viewer" aria-live="polite">
+          <article id="previewPane" class="preview-pane"></article>
+          <section id="editPane" class="edit-pane">
+            <div class="edit-header">
+              <span id="editState" class="edit-state">Clean</span>
+              <span id="updatedAt"></span>
+            </div>
+            <textarea id="textEditor" class="text-editor" spellcheck="false"></textarea>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      const fileData = [
+        {
+          path: "main_artifact/lib/readme.md",
+          kind: "markdown",
+          tags: ["main_artifact", "lib"],
+          status: "review",
+          updated: "2026-07-10 18:05",
+          sourcePath: "../../main_artifact/lib/readme.md",
+          content: `# lib README
+
+このファイルは、Issue #2 のデモ画面で実際に選択・表示するためのサンプルライブラリ資料です。
+
+## Viewer 確認
+
+- \`main_artifact/lib/readme.md\` をフォルダツリーに表示する。
+- ファイルを選択すると右側の Markdown ビューで内容を確認できる。
+- Markdown のプレビュー、編集、分割表示の対象にする。
+
+## 位置づけ
+
+\`main_artifact/lib/\` は、今後 viewer から参照したいメイン成果物側の資料置き場として使う想定です。`
+        }
+      ];
+
+      const state = {
+        selectedPath: "main_artifact/lib/readme.md",
+        expanded: new Set(["main_artifact", "main_artifact/lib"]),
+        viewMode: "split",
+        draft: "",
+        dirty: false
+      };
+
+      const el = {
+        tree: document.getElementById("tree"),
+        search: document.getElementById("searchInput"),
+        kind: document.getElementById("kindFilter"),
+        tag: document.getElementById("tagFilter"),
+        status: document.getElementById("statusFilter"),
+        markdownOnly: document.getElementById("markdownOnly"),
+        matchCount: document.getElementById("matchCount"),
+        selectedKind: document.getElementById("selectedKind"),
+        activeTab: document.getElementById("activeTab"),
+        title: document.getElementById("documentTitle"),
+        path: document.getElementById("documentPath"),
+        viewer: document.getElementById("viewer"),
+        preview: document.getElementById("previewPane"),
+        editPane: document.getElementById("editPane"),
+        editor: document.getElementById("textEditor"),
+        editState: document.getElementById("editState"),
+        updatedAt: document.getElementById("updatedAt"),
+        previewMode: document.getElementById("previewModeButton"),
+        splitMode: document.getElementById("splitModeButton"),
+        editMode: document.getElementById("editModeButton"),
+        save: document.getElementById("saveButton"),
+        cancel: document.getElementById("cancelButton"),
+        expandAll: document.getElementById("expandAllButton"),
+        collapseAll: document.getElementById("collapseAllButton")
+      };
+
+      const icons = {
+        folder: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`,
+        file: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>`,
+        chevronRight: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>`,
+        chevronDown: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>`
+      };
+
+      function unique(values) {
+        return [...new Set(values)].sort((a, b) => a.localeCompare(b, "ja"));
+      }
+
+      function basename(path) {
+        return path.split("/").pop();
+      }
+
+      function titleFromPath(path) {
+        return basename(path).replace(/\.[^.]+$/, "").replace(/^\d{6}_/, "").replaceAll("_", " ");
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;");
+      }
+
+      function inlineMarkdown(value) {
+        return escapeHtml(value)
+          .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+          .replace(/`([^`]+)`/g, "<code>$1</code>");
+      }
+
+      function renderMarkdown(markdown) {
+        const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+        const html = [];
+        let index = 0;
+
+        while (index < lines.length) {
+          const line = lines[index];
+
+          if (!line.trim()) {
+            index += 1;
+            continue;
+          }
+
+          if (line.startsWith("```")) {
+            const code = [];
+            index += 1;
+            while (index < lines.length && !lines[index].startsWith("```")) {
+              code.push(lines[index]);
+              index += 1;
+            }
+            index += 1;
+            html.push(`<pre><code>${escapeHtml(code.join("\n"))}</code></pre>`);
+            continue;
+          }
+
+          const heading = line.match(/^(#{1,3})\s+(.+)$/);
+          if (heading) {
+            const level = heading[1].length;
+            html.push(`<h${level}>${inlineMarkdown(heading[2])}</h${level}>`);
+            index += 1;
+            continue;
+          }
+
+          if (line.startsWith("> ")) {
+            const quote = [];
+            while (index < lines.length && lines[index].startsWith("> ")) {
+              quote.push(lines[index].slice(2));
+              index += 1;
+            }
+            html.push(`<blockquote>${quote.map(inlineMarkdown).join("<br>")}</blockquote>`);
+            continue;
+          }
+
+          if (/^-\s+/.test(line)) {
+            const items = [];
+            while (index < lines.length && /^-\s+/.test(lines[index])) {
+              items.push(`<li>${inlineMarkdown(lines[index].replace(/^-\s+/, ""))}</li>`);
+              index += 1;
+            }
+            html.push(`<ul>${items.join("")}</ul>`);
+            continue;
+          }
+
+          if (/^\d+\.\s+/.test(line)) {
+            const items = [];
+            while (index < lines.length && /^\d+\.\s+/.test(lines[index])) {
+              items.push(`<li>${inlineMarkdown(lines[index].replace(/^\d+\.\s+/, ""))}</li>`);
+              index += 1;
+            }
+            html.push(`<ol>${items.join("")}</ol>`);
+            continue;
+          }
+
+          const paragraph = [];
+          while (
+            index < lines.length &&
+            lines[index].trim() &&
+            !lines[index].startsWith("```") &&
+            !/^(#{1,3})\s+/.test(lines[index]) &&
+            !/^-\s+/.test(lines[index]) &&
+            !/^\d+\.\s+/.test(lines[index]) &&
+            !lines[index].startsWith("> ")
+          ) {
+            paragraph.push(lines[index]);
+            index += 1;
+          }
+          html.push(`<p>${inlineMarkdown(paragraph.join(" "))}</p>`);
+        }
+
+        return html.join("\n");
+      }
+
+      function fillSelect(select, label, values) {
+        select.innerHTML = "";
+        const all = document.createElement("option");
+        all.value = "all";
+        all.textContent = `${label}: all`;
+        select.appendChild(all);
+        values.forEach((value) => {
+          const option = document.createElement("option");
+          option.value = value;
+          option.textContent = `${label}: ${value}`;
+          select.appendChild(option);
+        });
+      }
+
+      function setupFilters() {
+        fillSelect(el.kind, "kind", unique(fileData.map((item) => item.kind)));
+        fillSelect(el.tag, "tag", unique(fileData.flatMap((item) => item.tags)));
+        fillSelect(el.status, "status", unique(fileData.map((item) => item.status)));
+      }
+
+      function matchesFilters(item) {
+        const query = el.search.value.trim().toLowerCase();
+        const kind = el.kind.value;
+        const tag = el.tag.value;
+        const status = el.status.value;
+
+        if (el.markdownOnly.checked && item.kind !== "markdown") return false;
+        if (kind !== "all" && item.kind !== kind) return false;
+        if (tag !== "all" && !item.tags.includes(tag)) return false;
+        if (status !== "all" && item.status !== status) return false;
+
+        if (!query) return true;
+
+        const haystack = [
+          item.path,
+          item.kind,
+          item.status,
+          item.tags.join(" "),
+          item.content
+        ].join(" ").toLowerCase();
+
+        return haystack.includes(query);
+      }
+
+      function filteredFiles() {
+        return fileData.filter(matchesFilters);
+      }
+
+      function folderAncestors(path) {
+        const parts = path.split("/");
+        const folders = [];
+        for (let i = 1; i < parts.length; i += 1) {
+          folders.push(parts.slice(0, i).join("/"));
+        }
+        return folders;
+      }
+
+      function buildTree(files) {
+        const root = { name: "", path: "", type: "folder", children: new Map() };
+        files.forEach((file) => {
+          let current = root;
+          const parts = file.path.split("/");
+          parts.forEach((part, index) => {
+            const path = parts.slice(0, index + 1).join("/");
+            if (!current.children.has(part)) {
+              current.children.set(part, {
+                name: part,
+                path,
+                type: index === parts.length - 1 ? "file" : "folder",
+                file: index === parts.length - 1 ? file : null,
+                children: new Map()
+              });
+            }
+            current = current.children.get(part);
+          });
+        });
+        return root;
+      }
+
+      function sortNodes(nodes) {
+        return [...nodes].sort((a, b) => {
+          if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
+          return a.name.localeCompare(b.name, "ja");
+        });
+      }
+
+      function renderTree() {
+        const files = filteredFiles();
+        const queryActive = Boolean(el.search.value.trim()) || el.kind.value !== "all" || el.tag.value !== "all" || el.status.value !== "all" || el.markdownOnly.checked;
+        const tree = buildTree(files);
+        const fragment = document.createDocumentFragment();
+
+        if (queryActive) {
+          files.flatMap((file) => folderAncestors(file.path)).forEach((folder) => state.expanded.add(folder));
+        }
+
+        if (!files.length) {
+          const empty = document.createElement("div");
+          empty.className = "empty-state";
+          empty.innerHTML = "<div><strong>No results</strong><span>Search or filters</span></div>";
+          el.tree.innerHTML = "";
+          el.tree.appendChild(empty);
+          el.matchCount.textContent = "0 files";
+          return;
+        }
+
+        function walk(node, depth) {
+          sortNodes(node.children.values()).forEach((child) => {
+            const row = document.createElement("button");
+            row.type = "button";
+            row.className = `tree-item${child.path === state.selectedPath ? " is-selected" : ""}`;
+            row.style.setProperty("--depth", depth);
+            row.dataset.path = child.path;
+            row.dataset.type = child.type;
+
+            const expanded = state.expanded.has(child.path);
+            const expander = child.type === "folder" ? (expanded ? icons.chevronDown : icons.chevronRight) : "";
+            const icon = child.type === "folder" ? icons.folder : icons.file;
+            const kind = child.type === "file" ? child.file.kind : "";
+
+            row.innerHTML = `
+              <span class="tree-expander">${expander}</span>
+              <span class="tree-icon ${child.type === "file" ? "file" : ""}">${icon}</span>
+              <span class="tree-name">${escapeHtml(child.name)}</span>
+              ${kind ? `<span class="kind-pill">${escapeHtml(kind)}</span>` : "<span></span>"}
+            `;
+
+            row.addEventListener("click", () => {
+              if (child.type === "folder") {
+                if (state.expanded.has(child.path)) state.expanded.delete(child.path);
+                else state.expanded.add(child.path);
+                renderTree();
+                return;
+              }
+              selectFile(child.path);
+            });
+
+            fragment.appendChild(row);
+
+            if (child.type === "folder" && expanded) {
+              walk(child, depth + 1);
+            }
+          });
+        }
+
+        walk(tree, 0);
+        el.tree.innerHTML = "";
+        el.tree.appendChild(fragment);
+        el.matchCount.textContent = `${files.length} file${files.length === 1 ? "" : "s"}`;
+
+        if (!files.some((file) => file.path === state.selectedPath)) {
+          selectFile(files[0].path, { keepTree: true });
+        }
+      }
+
+      function currentFile() {
+        return fileData.find((item) => item.path === state.selectedPath) || fileData[0];
+      }
+
+      function loadSourceContent(item) {
+        if (!item.sourcePath || item.sourceLoaded || item.sourceLoading) return;
+        item.sourceLoading = true;
+        fetch(item.sourcePath, { cache: "no-store" })
+          .then((response) => {
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return response.text();
+          })
+          .then((text) => {
+            item.content = text;
+            item.sourceLoaded = true;
+            if (state.selectedPath === item.path && !state.dirty) {
+              state.draft = text;
+              renderDocument();
+              renderTree();
+            }
+          })
+          .catch(() => {
+            item.sourceLoaded = false;
+          })
+          .finally(() => {
+            item.sourceLoading = false;
+          });
+      }
+
+      function isEditable(item) {
+        return ["markdown", "json", "text"].includes(item.kind);
+      }
+
+      function selectFile(path, options = {}) {
+        if (state.dirty && !confirm("未保存の変更を破棄しますか?")) return;
+        state.selectedPath = path;
+        state.dirty = false;
+        const item = currentFile();
+        state.draft = item.content;
+        if (item.kind === "markdown") state.viewMode = "split";
+        else state.viewMode = "preview";
+        renderDocument();
+        loadSourceContent(item);
+        if (!options.keepTree) renderTree();
+      }
+
+      function renderMetadata(item) {
+        return `
+          <div class="metadata-row">
+            <span class="badge accent">${escapeHtml(item.kind)}</span>
+            <span class="badge">${escapeHtml(item.status)}</span>
+            <span class="badge">${escapeHtml(item.updated)}</span>
+            ${item.tags.map((tag) => `<span class="badge">#${escapeHtml(tag)}</span>`).join("")}
+          </div>
+        `;
+      }
+
+      function renderDocument() {
+        const item = currentFile();
+        const editable = isEditable(item);
+        const markdown = item.kind === "markdown";
+        const displayName = basename(item.path);
+
+        el.activeTab.textContent = displayName;
+        el.title.textContent = titleFromPath(item.path);
+        el.path.textContent = item.path;
+        el.selectedKind.textContent = item.kind;
+        el.editor.value = state.draft;
+        el.updatedAt.textContent = item.updated;
+        el.editState.textContent = state.dirty ? "Modified" : "Clean";
+        el.save.disabled = !state.dirty || !editable;
+        el.cancel.disabled = !state.dirty || !editable;
+
+        [el.previewMode, el.splitMode, el.editMode].forEach((button) => {
+          button.disabled = !editable;
+          button.classList.remove("is-active");
+        });
+
+        if (state.viewMode === "preview") el.previewMode.classList.add("is-active");
+        if (state.viewMode === "split") el.splitMode.classList.add("is-active");
+        if (state.viewMode === "edit") el.editMode.classList.add("is-active");
+
+        el.viewer.classList.toggle("preview-only", state.viewMode === "preview" || !editable);
+        el.viewer.classList.toggle("edit-only", state.viewMode === "edit" && editable);
+        el.preview.hidden = state.viewMode === "edit" && editable;
+        el.editPane.hidden = state.viewMode === "preview" || !editable;
+
+        if (markdown) {
+          el.preview.innerHTML = `<div class="markdown">${renderMetadata(item)}${renderMarkdown(state.draft)}</div>`;
+        } else if (item.kind === "json" || item.kind === "text") {
+          el.preview.innerHTML = `<div class="markdown">${renderMetadata(item)}<pre><code>${escapeHtml(state.draft)}</code></pre></div>`;
+        } else if (item.kind === "pdf") {
+          el.preview.innerHTML = `
+            <div class="asset-preview">
+              <div class="asset-toolbar"><span>${escapeHtml(displayName)}</span><span>PDF</span></div>
+              <div class="pdf-page">
+                <div class="pdf-line short"></div>
+                <div class="pdf-line"></div>
+                <div class="pdf-line mid"></div>
+                <div style="height: 42px"></div>
+                <div class="pdf-line"></div>
+                <div class="pdf-line"></div>
+                <div class="pdf-line short"></div>
+              </div>
+            </div>
+          `;
+        } else if (item.kind === "image") {
+          el.preview.innerHTML = `
+            <div class="asset-preview">
+              <div class="asset-toolbar"><span>${escapeHtml(displayName)}</span><span>Image</span></div>
+              <div class="image-stage"><div class="image-mock"></div></div>
+            </div>
+          `;
+        } else {
+          el.preview.innerHTML = `<div class="empty-state"><div><strong>${escapeHtml(displayName)}</strong><span>${escapeHtml(item.kind)}</span></div></div>`;
+        }
+      }
+
+      function setViewMode(mode) {
+        const item = currentFile();
+        if (!isEditable(item)) return;
+        state.viewMode = mode;
+        renderDocument();
+      }
+
+      function saveDraft() {
+        const item = currentFile();
+        if (!isEditable(item)) return;
+        item.content = state.draft;
+        item.updated = new Date().toLocaleString("ja-JP", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+        state.dirty = false;
+        renderTree();
+        renderDocument();
+      }
+
+      function cancelDraft() {
+        const item = currentFile();
+        state.draft = item.content;
+        state.dirty = false;
+        renderDocument();
+      }
+
+      function setAllFolders(expanded) {
+        state.expanded.clear();
+        if (expanded) {
+          fileData.flatMap((file) => folderAncestors(file.path)).forEach((folder) => state.expanded.add(folder));
+        }
+        renderTree();
+      }
+
+      function bindEvents() {
+        [el.search, el.kind, el.tag, el.status, el.markdownOnly].forEach((control) => {
+          control.addEventListener("input", renderTree);
+          control.addEventListener("change", renderTree);
+        });
+
+        el.editor.addEventListener("input", () => {
+          const selectionStart = el.editor.selectionStart;
+          const selectionEnd = el.editor.selectionEnd;
+          const scrollTop = el.editor.scrollTop;
+          state.draft = el.editor.value;
+          state.dirty = state.draft !== currentFile().content;
+          renderDocument();
+          el.editor.focus();
+          el.editor.setSelectionRange(selectionStart, selectionEnd);
+          el.editor.scrollTop = scrollTop;
+        });
+
+        el.previewMode.addEventListener("click", () => setViewMode("preview"));
+        el.splitMode.addEventListener("click", () => setViewMode("split"));
+        el.editMode.addEventListener("click", () => setViewMode("edit"));
+        el.save.addEventListener("click", saveDraft);
+        el.cancel.addEventListener("click", cancelDraft);
+        el.expandAll.addEventListener("click", () => setAllFolders(true));
+        el.collapseAll.addEventListener("click", () => setAllFolders(false));
+      }
+
+      setupFilters();
+      bindEvents();
+      selectFile(state.selectedPath, { keepTree: true });
+      renderTree();
+    </script>
+  </body>
+</html>

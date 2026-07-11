@@ -33,6 +33,16 @@
 - HTTP 経由で開いた場合は実ファイルを fetch し、直接ファイルとして開いた場合は同じ内容の fallback を表示するようにした。
 - generic path `sub_artifact/002_artifact` を `sub_artifact/002_demo_screen_viewer` に改名した。
 
+## GitHub Pages follow-up
+
+追加コメントで、ローカル起動ではなく GitHub 上で誰でも確認できる方法がよいという依頼があった。
+
+対応:
+
+- GitHub Pages の `/docs` source で公開できるように、`docs/` 配下へ demo viewer の公開コピーを作成した。
+- `docs/index.html` を追加し、Pages root から demo viewer に遷移できるようにした。
+- 公開対象は `docs/` 配下に限定し、private repository 全体を Pages root として公開しない方針にした。
+
 ## 残課題
 
 - 実ファイルの読み込みと保存を行う場合はバックエンド API が必要。
