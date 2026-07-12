@@ -94,6 +94,12 @@ there if it has already been closed.
 state, prompts, queue files, pending files, human_wating files, archives,
 assignment state, and diagnostics.
 
+Normal project work should not edit `.core_program/` by hand. Day-to-day work
+belongs in `main_artifact/`, `sub_artifact/`, and `issue_log/`, and `.core_program/`
+should be left to the engine. The usual time to change `.core_program/` in a
+cloned project is when intentionally merging an ArtifactForge upstream update or
+maintaining the engine itself.
+
 Pending orchestration state belongs in `.core_program/pending_state.json`. It
 is a machine-readable ledger used by the Session_router to distinguish unsent,
 dispatched/in-progress, deferred, blocked, human-waiting, superseded, and

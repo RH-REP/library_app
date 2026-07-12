@@ -5,6 +5,10 @@ This README is an entry note for AI agents, maintainers, and operators who open
 the internal engine directory directly. Human users normally read the root
 `README.md` and `USER_MANUAL.md` only.
 
+During ordinary project work, do not edit `.core_program/` by hand. Let the
+engine manage its own runtime state there. Only merge upstream ArtifactForge
+updates into it intentionally when you are updating the engine/template copy.
+
 It owns machine-facing records only:
 
 - issue fetch state
