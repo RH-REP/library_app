@@ -30,7 +30,7 @@
 ## 2026-07-11 follow-up 3: Issue #5 実在ソース版
 
 - ユーザーの追加コメントを確認した。
-- synthetic fixture とは別に、実際に検索した HTML、PDF、JPEG を `source_samples/actual/` に保存した。
+- synthetic fixture とは別に、実際に検索した HTML、PDF、画像を形式別の `source_samples/` 配下に保存した。
 - `records/actual_web_source_samples.json` に URL、出典、取得日、用途を記録した。
 - `artifact.md`、`sub_goal.md`、`plan.md` に actual source の追記を行った。
 - `issue_log/004_library_feature_brainstorm/issue_5_actual_source_samples.md` を作成した。
@@ -43,3 +43,10 @@
 - actual source sample と `records/actual_web_source_samples.json` は残した。
 - fixture README と artifact を、現行 sample set が actual source 中心である内容へ更新した。
 - `issue_log/004_library_feature_brainstorm/issue_5_remove_synthetic_source_samples.md` を作成した。
+
+## 2026-07-13 follow-up 5: Issue #5 画像 sample 差し替え
+
+- ユーザーの追加コメントを確認した。
+- 画像 sample がプログラミング知見に関するものになるよう、ソフトウェア開発プロセス図へ差し替えた。
+- 古いソフトウェアテスト大会の JPEG を削除した。
+- `records/actual_web_source_samples.json` と関連 artifact / issue log の参照を更新した。

@@ -27,3 +27,8 @@
 
 - Issue #5 の follow-up により synthetic fixture が削除されたことを確認した。
 - text extraction の入力説明を actual source sample 中心へ更新した。
+
+## 2026-07-13 follow-up: Issue #5 image sample replacement 反映
+
+- Issue #5 の follow-up により画像 sample がソフトウェア開発プロセス図へ差し替えられたことを確認した。
+- image OCR の確認対象を `royce_final_model_waterfall.png` に更新した。

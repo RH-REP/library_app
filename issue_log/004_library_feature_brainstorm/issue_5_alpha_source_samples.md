@@ -45,9 +45,9 @@
 
 追加したもの:
 
-- `main_artifact/fixtures/demo_programming_tech_library/source_samples/actual/html/requirements_engineering_wikipedia.html`
-- `main_artifact/fixtures/demo_programming_tech_library/source_samples/actual/pdf/software_through_pictures_arxiv.pdf`
-- `main_artifact/fixtures/demo_programming_tech_library/source_samples/actual/image/software_testing_wikipedia.jpg`
+- `main_artifact/fixtures/demo_programming_tech_library/source_samples/html/requirements_engineering_wikipedia.html`
+- `main_artifact/fixtures/demo_programming_tech_library/source_samples/pdf/software_through_pictures_arxiv.pdf`
+- `main_artifact/fixtures/demo_programming_tech_library/source_samples/image/royce_final_model_waterfall.png`
 - `main_artifact/fixtures/demo_programming_tech_library/records/actual_web_source_samples.json`
 
 判断:
@@ -60,5 +60,18 @@
 
 ユーザーの follow-up に合わせて、上記の synthetic fixture と
 `records/alpha_source_samples.json` は削除した。
-現行の sample set は `source_samples/actual/` と
+現行の sample set は形式別の `source_samples/html/`、`source_samples/pdf/`、
+`source_samples/image/` と
 `records/actual_web_source_samples.json` のみを使う。
+
+## 2026-07-13 追加対応: 画像 sample 差し替え
+
+画像 sample は、ソフトウェアテスト大会の写真から、プログラミング知見に直接関係する
+ソフトウェア開発プロセス図へ差し替えた。
+
+現行の実在ソース:
+
+- `main_artifact/fixtures/demo_programming_tech_library/source_samples/html/requirements_engineering_wikipedia.html`
+- `main_artifact/fixtures/demo_programming_tech_library/source_samples/pdf/software_through_pictures_arxiv.pdf`
+- `main_artifact/fixtures/demo_programming_tech_library/source_samples/image/royce_final_model_waterfall.png`
+- `main_artifact/fixtures/demo_programming_tech_library/records/actual_web_source_samples.json`

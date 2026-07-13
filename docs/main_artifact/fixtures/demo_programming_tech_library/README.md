@@ -18,7 +18,9 @@ demo_programming_tech_library/
 
 現時点では、実際に取得した外部ソース snapshot だけを残す。
 
-- `actual/` 配下: issue #5 の follow-up で実際に検索して保存した外部ソースの snapshot
+- `source_samples/html/`: HTML snapshot
+- `source_samples/pdf/`: PDF snapshot
+- `source_samples/image/`: image / OCR 用 snapshot
 
 `records/actual_web_source_samples.json` は actual source の provenance 付き index
 として扱う。以前作成した synthetic fixture と `records/alpha_source_samples.json` は

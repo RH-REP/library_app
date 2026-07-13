@@ -17,7 +17,9 @@
 
 残したもの:
 
-- `main_artifact/fixtures/demo_programming_tech_library/source_samples/actual/`
+- `main_artifact/fixtures/demo_programming_tech_library/source_samples/html/`
+- `main_artifact/fixtures/demo_programming_tech_library/source_samples/pdf/`
+- `main_artifact/fixtures/demo_programming_tech_library/source_samples/image/`
 - `main_artifact/fixtures/demo_programming_tech_library/records/actual_web_source_samples.json`
 
 ## 判断

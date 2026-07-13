@@ -7,7 +7,8 @@ URL や出典も md で簡易に残すよう依頼した。
 
 ## 方針
 
-- 実在ソースは別セットとして `source_samples/actual/` に保存する。
+- 実在ソースは形式別に `source_samples/html/`、`source_samples/pdf/`、
+  `source_samples/image/` に保存する。
 - provenance は JSON index とこの issue log の両方に残す。
 
 ## 保存したソース
@@ -15,7 +16,7 @@ URL や出典も md で簡易に残すよう依頼した。
 ### 1. HTML
 
 - ローカル保存先:
-  `main_artifact/fixtures/demo_programming_tech_library/source_samples/actual/html/requirements_engineering_wikipedia.html`
+  `main_artifact/fixtures/demo_programming_tech_library/source_samples/html/requirements_engineering_wikipedia.html`
 - URL:
   `https://en.wikipedia.org/wiki/Requirements_engineering`
 - 出典:
@@ -27,7 +28,7 @@ URL や出典も md で簡易に残すよう依頼した。
 ### 2. PDF
 
 - ローカル保存先:
-  `main_artifact/fixtures/demo_programming_tech_library/source_samples/actual/pdf/software_through_pictures_arxiv.pdf`
+  `main_artifact/fixtures/demo_programming_tech_library/source_samples/pdf/software_through_pictures_arxiv.pdf`
 - URL:
   `https://arxiv.org/pdf/2403.08085.pdf`
 - 出典:
@@ -40,13 +41,16 @@ URL や出典も md で簡易に残すよう依頼した。
 ### 3. Image
 
 - ローカル保存先:
-  `main_artifact/fixtures/demo_programming_tech_library/source_samples/actual/image/software_testing_wikipedia.jpg`
+  `main_artifact/fixtures/demo_programming_tech_library/source_samples/image/royce_final_model_waterfall.png`
 - URL:
-  `https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/TestingCup-Polish-Championship-in-Software-Testing-Katowice-2016.jpg/1280px-TestingCup-Polish-Championship-in-Software-Testing-Katowice-2016.jpg`
+  `https://upload.wikimedia.org/wikipedia/commons/d/de/1970_Royce_Managing_the_Development_of_Large_Software_Systems_Fig10.PNG`
 - 出典:
-  Wikipedia Commons
+  Wikimedia Commons / Wikipedia
+- タイトル:
+  `Royce final model - Waterfall model`
 - 用途:
-  image-to-plain-text / OCR 導線で、実在 JPEG を扱う最低限の入力として使う。
+  image-to-plain-text / OCR 導線で、ソフトウェア開発プロセスの図表画像を扱う
+  最低限の入力として使う。
 
 ## 補足
 
@@ -59,3 +63,9 @@ URL や出典も md で簡易に残すよう依頼した。
 
 ユーザーの follow-up により、自作側の synthetic sample file は削除した。
 現行の sample set は、この actual source set だけである。
+
+## 2026-07-13 更新 2
+
+ユーザーの follow-up により、画像サンプルをプログラミング知見に直接関係する
+ソフトウェア開発プロセス図へ差し替えた。
+古いソフトウェアテスト大会の写真は、知見抽出用の画像サンプルとして弱いため削除した。
