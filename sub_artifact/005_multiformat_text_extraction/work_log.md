@@ -41,3 +41,10 @@
 - `royce_final_model_waterfall.png` を目視し、Tesseract CLI で原本 OCR と 3 倍拡大・二値化 OCR を試した。
 - 画像 OCR は誤読が多いため、diagram transcription と human review を前提にする判断を artifact に追記した。
 - `issue_log/005_multiformat_text_extraction/issue_6_pdf_image_sample_textification.md` を作成した。
+
+## 2026-07-13 follow-up: 実装工程と metadata header 取り込み
+
+- ユーザーの確認により、実装前に工程を細かく切ることにした。
+- `sub_artifact/006_library_folder_structure/metadata_header_contract.md` を確認した。
+- metadata header は `organized_data/{item_id}/index.md` の冒頭に置き、`plain_text.txt` には付けない方針を明記した。
+- extractor と organizer を分ける工程として `implementation_phases.md` を作成した。

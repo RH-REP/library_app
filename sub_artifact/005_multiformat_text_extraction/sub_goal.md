@@ -8,6 +8,7 @@ first cut を独立した workstream として定義する。
 ## 成果物
 
 - `sub_artifact/005_multiformat_text_extraction/artifact.md`
+- `sub_artifact/005_multiformat_text_extraction/implementation_phases.md`
 - `sub_artifact/005_multiformat_text_extraction/plan.md`
 - `sub_artifact/005_multiformat_text_extraction/work_log.md`
 - `issue_log/005_multiformat_text_extraction/issue_6_multiformat_text_extraction_plan.md`
@@ -21,6 +22,7 @@ first cut を独立した workstream として定義する。
 - 各機能について 3 段階レビューの工程と完了条件を示す。
 - 入力データとして issue #5 で集めた sample を参照する。
 - 実際の PDF / image sample を確認し、散らばった文字をどう扱うかを決める。
+- Issue #7 の metadata header contract を実装工程へ取り込む。
 
 ## 範囲外
 
