@@ -1,0 +1,10 @@
+{
+  "source_id": "src_20260713_001_example",
+  "source_path": "raw_sources/src_20260713_001_example/original/example.pdf",
+  "media_type": "application/pdf",
+  "extractor": "pdf_to_text",
+  "status": "ok",
+  "warnings": [],
+  "ocr_used": false,
+  "language_hint": "eng"
+}

@@ -24,11 +24,13 @@ ArtifactForge 本体の upstream に混ぜないでください。
 現在の main_artifact 内の初期構成は次を想定します。
 
 1. `web_app/`
-2. `private_data/programming_tech_library/`
-3. `fixtures/demo_programming_tech_library/`
-4. `web_app_directory_plan.md`
+2. `library_skill/`
+3. `private_data/programming_tech_library/`
+4. `fixtures/demo_programming_tech_library/`
+5. `web_app_directory_plan.md`
 
-`web_app/` は Web app 本体、`private_data/` は開発中の個別データ、
+`web_app/` は Web app 本体、`library_skill/` は HTML / PDF / image などを
+plain text 化する補助 program と schema、`private_data/` は開発中の個別データ、
 `fixtures/` は共有可能な demo データの置き場です。
 
 `.core_program/` の queue、pending、router 診断、session 割り当て状態は

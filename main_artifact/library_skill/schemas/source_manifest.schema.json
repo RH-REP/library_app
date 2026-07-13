@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SourceManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source_id",
+    "original_filename",
+    "stored_path",
+    "media_type",
+    "sha256",
+    "created_at",
+    "status"
+  ],
+  "properties": {
+    "source_id": {
+      "type": "string"
+    },
+    "original_filename": {
+      "type": "string"
+    },
+    "stored_path": {
+      "type": "string"
+    },
+    "media_type": {
+      "type": "string"
+    },
+    "sha256": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "queued",
+        "raw_archived",
+        "extracted",
+        "needs_ocr",
+        "needs_review",
+        "organized",
+        "failed",
+        "skipped_duplicate"
+      ]
+    }
+  }
+}

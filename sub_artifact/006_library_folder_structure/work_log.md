@@ -15,3 +15,11 @@
   `.library_skill` を実運用の観点からレビューした。
 - `raw_sources/`、`extracted_text/`、`organized_data/`、`library_records/` を分ける first cut を提案した。
 - `issue_log/006_library_folder_structure/issue_7_library_folder_structure_review.md` を作成した。
+- follow-up comment で、案Bの独立 `library_skill/` とフォルダ構成作成が承認された。
+- `main_artifact/library_skill/`、`extractors/`、`schemas/` を作成し、抽出本体を持たない Python skeleton を置いた。
+- `main_artifact/private_data/programming_tech_library/` 配下に `input/`、`raw_sources/`、
+  `extracted_text/`、`organized_data/`、`library_records/`、`research_requests/`、
+  `review_queue/`、`notes/` を作成した。
+- `process_log.csv`、schema、template、各ディレクトリの README を追加した。
+- `main_artifact/README.md` と `main_artifact/web_app_directory_plan.md` を更新した。
+- 残るレビュー項目を `artifact.md` と issue log に追記した。

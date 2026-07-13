@@ -321,3 +321,71 @@ first cut のおすすめ:
 2. 空ディレクトリを commit する必要がある場合だけ `.gitkeep` を置く。
 3. `source_manifest.json` と `extraction_record.json` の最小 schema を決める。
 4. `process_log.csv` の status と更新タイミングを extractor 実装に合わせて固定する。
+
+## Follow-up: 案Bでフォルダ構成を作成
+
+2026-07-13 の follow-up comment で、ユーザーから「案B: 独立した library skill として置く」で
+よいこと、まずフォルダ構成を作成することが確認された。
+
+これを受けて、次を実体化した。
+
+```text
+main_artifact/library_skill/
+├── README.md
+├── extractors/
+│   ├── README.md
+│   ├── common.py
+│   ├── html_to_text.py
+│   ├── pdf_to_text.py
+│   └── image_ocr_to_text.py
+└── schemas/
+    ├── extraction_record.schema.json
+    └── source_manifest.schema.json
+```
+
+また、private data 側には次の first cut を作成した。
+
+```text
+main_artifact/private_data/programming_tech_library/
+├── README.md
+├── input/
+│   ├── README.md
+│   └── inbox/
+├── process_log.csv
+├── raw_sources/
+│   ├── README.md
+│   └── _template/
+├── extracted_text/
+│   ├── README.md
+│   └── _template/
+├── organized_data/
+│   ├── README.md
+│   └── _template/
+├── library_records/
+│   ├── README.md
+│   ├── sources.csv
+│   └── items.example.jsonl
+├── research_requests/
+├── review_queue/
+└── notes/
+```
+
+この段階では、HTML / PDF / OCR の抽出本体は実装していない。
+Python file は、`ExtractionRecord` contract と入口関数を固定する skeleton に留めている。
+
+## 他に相談するレビュー項目
+
+残るレビュー項目はある。次に相談するとよい順番は次の通り。
+
+1. source ID と item ID の境界
+   - 1 ファイル 1 source は固定でよい。
+   - 1 item が複数 source を参照してよいかを、早めに確定したい。
+2. `items.jsonl` を正本にするか、早めに DB へ移すか
+   - alpha では JSONL で十分だが、編集 UI を作るなら DB の方が扱いやすくなる。
+3. OCR 結果をどこまで保存するか
+   - OCR 前画像、OCR 済み PDF、plain text、warning をどこまで残すかで容量と再現性が変わる。
+4. UI に raw source を表示するか
+   - 通常の Explorer では organized item を主表示にし、raw source は詳細または開発者向け表示に寄せるのがよい。
+5. private data をどの範囲まで commit するか
+   - README、schema、template は commit してよい。
+   - 実PDF、画像、大量OCR出力は private repository でも肥大化しやすいため、後で外部 storage へ逃がす判断が必要になる。

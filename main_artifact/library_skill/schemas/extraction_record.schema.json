@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ExtractionRecord",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source_id",
+    "source_path",
+    "media_type",
+    "extractor",
+    "status",
+    "warnings",
+    "ocr_used",
+    "language_hint"
+  ],
+  "properties": {
+    "source_id": {
+      "type": "string"
+    },
+    "source_path": {
+      "type": "string"
+    },
+    "media_type": {
+      "type": "string"
+    },
+    "extractor": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "needs_ocr",
+        "needs_review",
+        "failed"
+      ]
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ocr_used": {
+      "type": "boolean"
+    },
+    "language_hint": {
+      "type": "string"
+    }
+  }
+}

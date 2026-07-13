@@ -13,3 +13,12 @@
 - `beautifulsoup4` + `lxml`、`pypdf` + `PyMuPDF`、`pytesseract` + Tesseract、`ocrmypdf` の役割分担を整理した。
 - 実装工程を「環境確認 -> 共通 contract -> HTML -> PDF -> image OCR -> scanned PDF OCR -> 回帰確認」に分解した。
 - `issue_log/005_multiformat_text_extraction/issue_6_python_skillset_and_implementation_steps.md` を追加した。
+
+## 2026-07-13
+
+- Issue #6 の follow-up comment を確認した。
+- Issue #7 のフォルダ構成レビューを確認し、Python extractor の置き場を `main_artifact/library_skill/extractors/` と判断した。
+- `common.py`、`html_to_text.py`、`pdf_to_text.py`、`image_ocr_to_text.py` の雛形を追加した。
+- 細部実装は入れず、共通 contract に合う `ExtractionResult` を返す構成だけ固定した。
+- `main_artifact/library_skill/README.md` と `extractors/README.md` を雛形配置後の内容へ更新した。
+- `issue_log/005_multiformat_text_extraction/issue_6_extractor_skeleton_from_issue_7_layout.md` を追加した。

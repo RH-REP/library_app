@@ -1,0 +1,3 @@
+Example extracted text.
+
+This file shows the expected location and filename for extractor output.

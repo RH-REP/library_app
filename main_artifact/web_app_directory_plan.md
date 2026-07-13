@@ -13,6 +13,8 @@ main_artifact/
 ├── goal.md
 ├── development_process.md
 ├── web_app_directory_plan.md
+├── library_skill/
+│   └── README.md
 ├── web_app/
 │   └── README.md
 ├── private_data/
@@ -56,6 +58,41 @@ web_app/
 └── config.example.yml
 ```
 
+### `main_artifact/library_skill/`
+
+HTML、PDF、image などの原本を plain text 化する補助 program と schema を置く。
+
+想定する内部構成:
+
+```text
+library_skill/
+├── README.md
+├── extractors/
+│   ├── README.md
+│   ├── common.py
+│   ├── html_to_text.py
+│   ├── pdf_to_text.py
+│   └── image_ocr_to_text.py
+└── schemas/
+    ├── extraction_record.schema.json
+    └── source_manifest.schema.json
+```
+
+ここに入れるもの:
+
+- extractor の Python program
+- extraction record や source manifest の schema
+- importer / extractor の小さな共通 helper
+
+ここに入れないもの:
+
+- 実際の PDF、画像、HTML snapshot
+- 抽出済み text
+- 個別の蔵書データ
+
+extractor の出力先は `private_data/programming_tech_library/extracted_text/` とし、
+原本保存先は `private_data/programming_tech_library/raw_sources/` とする。
+
 ### `main_artifact/private_data/programming_tech_library/`
 
 開発中に使う個別データを置く。
@@ -64,12 +101,15 @@ web_app/
 
 ```text
 private_data/programming_tech_library/
+├── input/
+├── process_log.csv
 ├── raw_sources/
-├── staging/
+├── extracted_text/
+├── organized_data/
 ├── library_records/
 ├── research_requests/
-├── notes/
-└── attachments/
+├── review_queue/
+└── notes/
 ```
 
 この配下は、開発中は commit してもよい。ただし、将来 public 配布や clean archive を作るときは分離対象になる。
@@ -106,5 +146,6 @@ fixtures/demo_programming_tech_library/
 ## 次にやること
 
 - `main_artifact/web_app/` の frontend/backend の責務を細かく決める。
-- `main_artifact/private_data/programming_tech_library/` の最小ディレクトリを具体化する。
+- `main_artifact/library_skill/extractors/` の first cut 実装方針を決める。
+- `source_manifest.json` と `extraction_record.json` の schema を extractor 実装に合わせて固める。
 - `main_artifact/fixtures/demo_programming_tech_library/` の最小サンプルを作る。
