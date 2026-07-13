@@ -59,7 +59,8 @@ Write them like this:
   - [`sub_artifact/005_multiformat_text_extraction/artifact.md`](https://github.com/OWNER/REPO/blob/BRANCH/sub_artifact/005_multiformat_text_extraction/artifact.md)
 
 Prefer Markdown links whose label is the repository path itself.
-In `追加したもの:`, make every repository path bullet a clickable Markdown link.
+In `まず見るべきファイル:`, `変更点:`, `変更の要点:`, and `詳細:`,
+make every repository path bullet a clickable Markdown link.
 If a final issue comment still contains repository paths without clickable GitHub
 links, rewrite the comment before posting.
 HTML example:
@@ -70,13 +71,14 @@ HTML example:
   - <a href="https://github.com/OWNER/REPO/blob/BRANCH/sub_artifact/005_multiformat_text_extraction/artifact.md">sub_artifact/005_multiformat_text_extraction/artifact.md</a>
   - <a href="https://github.com/OWNER/REPO/tree/BRANCH/sub_artifact/005_multiformat_text_extraction">sub_artifact/005_multiformat_text_extraction/ に今回の整理をまとめました</a>
 - Preferred final comment shape:
-  1. Short completion line, such as `Issue #ISSUE_NUMBER 対応しました。`
-  2. One sentence linking the main sub-artifact directory.
-  3. `追加したもの:` as a flat bullet list of clickable file/directory links.
-  4. Optional short section such as `整理した観点:` or `実施内容:`.
-  5. Commit / push result.
-  6. Optional next-step suggestions.
-  7. The required `codex-agent-v1` marker footer as the very last line.
+  1. Short completion line, such as `Issue #ISSUE_NUMBER 完了しました。`
+  2. `変更点:` with a short at-a-glance summary.
+  3. `まず見るべきファイル:` as a flat bullet list of clickable file/directory links, with the main directory first.
+  4. `変更の要点:` with a concise list of the important decisions or scope notes.
+  5. `詳細:` with a concise list of concrete work items, verification, or follow-up notes.
+  6. Commit / push result.
+  7. Optional next-step suggestions.
+  8. The required `codex-agent-v1` marker footer as the very last line.
 - Put one `codex-agent-v1` marker footer at the very end of the comment.
 - Use only these marker statuses: `done`, `reassign_required`, `authentication_blocked`.
 - Unless `local_demo_contract.external_side_effects_forbidden` is true, commit
