@@ -64,3 +64,14 @@
 
 - `lib/` は viewer デモの都合で生えた仮の参照先として扱い、正規の置き場にはしない。
 - viewer の現在の見せ口は `main_artifact` の現行構成へ合わせる。
+
+## Follow-up: main 実装への昇格
+
+追加コメントで、「デモ画面を main で実装して」という依頼があった。
+
+対応:
+
+- `main_artifact/web_app/index.html` を追加し、デモ画面の正本を `main_artifact/web_app/` に置いた。
+- `docs/main_artifact/web_app/index.html` を追加し、公開コピーも同じ構成へ揃えた。
+- `docs/index.html` の遷移先を `main_artifact/web_app/index.html` へ変更した。
+- `sub_artifact/002_demo_screen_viewer/demo.html` は制作履歴として残し、本体実装の置き場は `main_artifact/web_app/` に切り替えた。

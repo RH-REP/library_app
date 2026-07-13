@@ -33,3 +33,11 @@
 - `main_artifact/lib/readme.md` と `docs/main_artifact/lib/readme.md` を削除した。
 - `demo.html` のツリー表示と fetch 先を、`main_artifact/web_app_directory_plan.md`、`main_artifact/web_app/README.md`、`main_artifact/private_data/programming_tech_library/README.md`、`main_artifact/fixtures/demo_programming_tech_library/README.md` へ差し替えた。
 - Pages 公開用の `docs/main_artifact/...` コピーも新構成へ同期した。
+
+## 2026-07-13 follow-up
+
+- 追加コメント「デモ画面をmainで実装して」を受領した。
+- `sub_artifact/002_demo_screen_viewer/demo.html` の内容を `main_artifact/web_app/index.html` に昇格した。
+- `docs/main_artifact/web_app/index.html` を追加し、公開用コピーの正本も `main_artifact/web_app/` 起点に揃えた。
+- `docs/index.html` の遷移先を `docs/main_artifact/web_app/index.html` へ変更した。
+- `main_artifact/web_app/README.md` に暫定 entrypoint として `index.html` を使う旨を追記した。

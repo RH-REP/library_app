@@ -15,3 +15,5 @@ web_app/
 ```
 
 ここには UI、API、schema、設定テンプレートを置く。個別の蔵書データ、PDF、個人メモは置かない。
+
+現時点のデモ画面は `index.html` に置く。`web_app/` 配下を今後本体実装へ育てる前提の暫定 entrypoint とする。

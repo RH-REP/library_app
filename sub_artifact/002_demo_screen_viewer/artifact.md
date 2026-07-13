@@ -6,10 +6,12 @@ Issue #2 の依頼に対して、HTML のデモ画面を作成した。
 
 - `main_artifact/web_app_directory_plan.md`
 - `main_artifact/web_app/README.md`
+- `main_artifact/web_app/index.html`
 - `main_artifact/private_data/programming_tech_library/README.md`
 - `main_artifact/fixtures/demo_programming_tech_library/README.md`
 - `sub_artifact/002_demo_screen_viewer/demo.html`
 - `docs/index.html`
+- `docs/main_artifact/web_app/index.html`
 - `docs/sub_artifact/002_demo_screen_viewer/demo.html`
 - `docs/main_artifact/web_app_directory_plan.md`
 - `docs/main_artifact/web_app/README.md`
@@ -22,6 +24,7 @@ Issue #2 の依頼に対して、HTML のデモ画面を作成した。
 - 左ペインの幅はデスクトップで約 1/4 を基準にした。
 - フォルダツリー上部に検索、種別、タグ、状態、Markdown 限定のフィルターを配置した。
 - 現在は `main_artifact/web_app_directory_plan.md`、`main_artifact/web_app/README.md`、`main_artifact/private_data/programming_tech_library/README.md`、`main_artifact/fixtures/demo_programming_tech_library/README.md` をツリーに出し、右側に表示する。
+- デモ画面の正本は `main_artifact/web_app/index.html` に置いた。
 - Markdown ファイルではプレビュー、編集、分割表示を切り替えられる。
 - 編集内容はデモ内のメモリ上で保存できる。
 - `main_artifact` の現在構想に沿って、Web app 本体、個別データ、fixture の README/plan をフォルダツリー内に表示し、右側 viewer で開ける。
@@ -42,3 +45,4 @@ Issue #2 の依頼に対して、HTML のデモ画面を作成した。
 - 実装時は、既存 `.tools/knowledge_web/server.py` のようなローカルサーバ機能か、別の保存 API が必要になる。
 - `docs/` 配下は GitHub Pages 公開用コピーなので、元の demo/readme を変更した場合は同期が必要。
 - 旧 `main_artifact/lib/` は廃止し、viewer の参照先は現行の `web_app / private_data / fixtures` 構成へ移した。
+- `sub_artifact/002_demo_screen_viewer/demo.html` は制作履歴として残し、実装の正本は `main_artifact/web_app/index.html` に置く。
