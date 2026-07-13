@@ -75,3 +75,14 @@
 - `docs/main_artifact/web_app/index.html` を追加し、公開コピーも同じ構成へ揃えた。
 - `docs/index.html` の遷移先を `main_artifact/web_app/index.html` へ変更した。
 - `sub_artifact/002_demo_screen_viewer/demo.html` は制作履歴として残し、本体実装の置き場は `main_artifact/web_app/` に切り替えた。
+
+## Follow-up: repository top entrypoint
+
+追加コメントで、`libraly_app` の top `index.html` から現在の demo app へジャンプできるようにしたいという依頼があった。
+
+対応:
+
+- root の `index.html` を追加した。
+- `index.html` は `main_artifact/web_app/index.html` へ即時遷移する。
+- 自動遷移が効かない環境でも同じ demo viewer を開けるように、fallback link を置いた。
+- GitHub Pages 用の `docs/index.html` と、repository top 用の root `index.html` の役割を分けた。

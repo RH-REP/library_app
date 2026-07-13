@@ -41,3 +41,9 @@
 - `docs/main_artifact/web_app/index.html` を追加し、公開用コピーの正本も `main_artifact/web_app/` 起点に揃えた。
 - `docs/index.html` の遷移先を `docs/main_artifact/web_app/index.html` へ変更した。
 - `main_artifact/web_app/README.md` に暫定 entrypoint として `index.html` を使う旨を追記した。
+
+## 2026-07-13 follow-up 2
+
+- `libraly_app` repository top の `index.html` 作成依頼を受領した。
+- root の `index.html` を追加し、現在の demo app `main_artifact/web_app/index.html` へ即時遷移する入口にした。
+- `docs/index.html` は GitHub Pages `/docs` source 用、root `index.html` は repository top 用の入口として役割を分けた。

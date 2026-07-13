@@ -9,6 +9,7 @@ Issue #2 の依頼に対して、HTML のデモ画面を作成した。
 - `main_artifact/web_app/index.html`
 - `main_artifact/private_data/programming_tech_library/README.md`
 - `main_artifact/fixtures/demo_programming_tech_library/README.md`
+- `index.html`
 - `sub_artifact/002_demo_screen_viewer/demo.html`
 - `docs/index.html`
 - `docs/main_artifact/web_app/index.html`
@@ -31,6 +32,7 @@ Issue #2 の依頼に対して、HTML のデモ画面を作成した。
 - デモを HTTP 経由で開いた場合は、対応する `main_artifact/...` または `docs/main_artifact/...` の実ファイルを読み込む。直接ファイルとして開いた場合も同内容の fallback を表示する。
 - GitHub Pages 用に `docs/` 配下へ公開コピーを置いた。
 - Pages が有効になると `https://rh-rep.github.io/libraly_app/` から確認できる。
+- repository top の `index.html` からも現在の demo viewer へ即時遷移できる。
 
 ## 参照した既存資料
 
@@ -44,5 +46,6 @@ Issue #2 の依頼に対して、HTML のデモ画面を作成した。
 - この成果物は画面確認用の静的デモであり、実ファイルへの永続保存は行わない。
 - 実装時は、既存 `.tools/knowledge_web/server.py` のようなローカルサーバ機能か、別の保存 API が必要になる。
 - `docs/` 配下は GitHub Pages 公開用コピーなので、元の demo/readme を変更した場合は同期が必要。
+- root の `index.html` は repository top 用の案内入口であり、現在は `main_artifact/web_app/index.html` へ遷移する。
 - 旧 `main_artifact/lib/` は廃止し、viewer の参照先は現行の `web_app / private_data / fixtures` 構成へ移した。
 - `sub_artifact/002_demo_screen_viewer/demo.html` は制作履歴として残し、実装の正本は `main_artifact/web_app/index.html` に置く。
