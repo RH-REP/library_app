@@ -48,3 +48,9 @@
 - `sub_artifact/006_library_folder_structure/metadata_header_contract.md` を確認した。
 - metadata header は `organized_data/{item_id}/index.md` の冒頭に置き、`plain_text.txt` には付けない方針を明記した。
 - extractor と organizer を分ける工程として `implementation_phases.md` を作成した。
+
+## 2026-07-13 follow-up: 3 段階レビュー方式へ再構成
+
+- ユーザーの追加指示により、実装工程を 3 段階レビュー方式に変更した。
+- Review 1: Contract Review、Review 2: Extractor Output Review、Review 3: Organized Data Review を定義した。
+- Phase 0-7 を各 review gate の前後に配置し直した。

@@ -44,6 +44,28 @@ local file だけの場合は `収集URL` に `local:` prefix を使う。
 
 ## 実装工程
 
+ユーザーの追加指示により、工程は 3 段階レビュー方式に再構成した。
+
+### Review 1: Contract Review
+
+- Extraction contract
+- metadata header adapter
+- `extracted_text/` と `organized_data/` の境界
+
+### Review 2: Extractor Output Review
+
+- HTML / PDF / image の first cut 出力
+- PDF の body / caption 分離
+- image OCR candidate と diagram transcription
+
+### Review 3: Organized Data Review
+
+- metadata header 付き `organized_data/{item_id}/index.md`
+- `source_refs.json`
+- `library_records/items.jsonl`
+
+## 実装 Phase
+
 1. 環境と依存の固定
 2. Extraction contract 更新
 3. metadata header adapter

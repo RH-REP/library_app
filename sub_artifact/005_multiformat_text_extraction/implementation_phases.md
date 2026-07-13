@@ -1,7 +1,27 @@
-# Implementation Phases: Multiformat Text Extraction
+# Three-Review Implementation Process: Multiformat Text Extraction
 
-Issue #6 の次実装では、extractor を一気に作らず、契約更新、形式別抽出、
-整理済み index 生成を分けて進める。
+Issue #6 の次実装では、extractor を一気に作らず、3 段階レビュー方式で進める。
+各レビューは、次の実装へ進んでよいかを判断する gate として扱う。
+
+## 3 段階レビューの全体像
+
+```text
+Phase 0-2
+  -> Review 1: Contract Review
+Phase 3-5
+  -> Review 2: Extractor Output Review
+Phase 6-7
+  -> Review 3: Organized Data Review
+```
+
+レビューの目的:
+
+- Review 1:
+  実装前に contract と保存境界を固める。
+- Review 2:
+  実サンプルの抽出結果が検索に渡せる品質か確認する。
+- Review 3:
+  `organized_data/` と metadata header が、参照・検索・UI へ渡せる形か確認する。
 
 ## 参照する既存契約
 
@@ -111,6 +131,37 @@ metadata header 形式:
 - `_template/index.md` と同じ形式の header を生成できる。
 - header と structured metadata の同期方針が README に書かれている。
 
+## Review 1: Contract Review
+
+対象:
+
+- `ExtractionResult` / `ExtractionRecord`
+- `extraction_record.schema.json`
+- `plain_text.txt` / `extraction_record.json` の出力 contract
+- `metadata_header_contract.md` との接続
+- `extracted_text/` と `organized_data/` の境界
+
+確認観点:
+
+- `plain_text.txt` に metadata header を付けない判断が守られているか。
+- `organized_data/{item_id}/index.md` にだけ metadata header を付ける設計になっているか。
+- `body_text`, `caption_text`, `figure_text`, `diagram_transcription`,
+  `layout_warnings`, `extraction_method` が必要十分か。
+- 低信頼 OCR を `plain_text.txt` に無条件で混ぜない設計になっているか。
+- `未確認` と `local:` prefix の扱いが metadata header adapter に入っているか。
+
+レビュー成果物:
+
+- contract 差分
+- schema 差分
+- サンプル `extraction_record.json`
+- サンプル metadata header
+
+通過条件:
+
+- user または reviewer が、contract と保存境界に同意している。
+- Phase 3-5 の形式別 extractor を実装しても後戻りが少ない状態である。
+
 ## Phase 3: HTML extractor first cut
 
 目的:
@@ -171,6 +222,40 @@ HTML snapshot から検索に使える主本文を取り出す。
 - 正式な検索用 text は `diagram_transcription` 優先にできる。
 - 矢印や関係は OCR だけで復元しない前提が明示されている。
 
+## Review 2: Extractor Output Review
+
+対象:
+
+- HTML extractor first cut の出力
+- PDF coordinate extraction first cut の出力
+- Image OCR candidate と diagram transcription の出力
+- `plain_text.txt`
+- `extraction_record.json`
+
+確認観点:
+
+- HTML は navigation や footer が本文より多く残っていないか。
+- PDF は 2 段組の本文順序が大きく崩れていないか。
+- PDF の caption が本文へ無制御に混ざっていないか。
+- PDF の図内 OCR 候補が本文と別 field になっているか。
+- 画像 OCR は低信頼の場合に `needs_review` になるか。
+- `diagram_transcription` は検索用 text として読める粒度か。
+- warnings が、後で人間が判断できる内容になっているか。
+
+レビュー成果物:
+
+- HTML sample の抽出結果
+- PDF sample の抽出結果
+- image sample の OCR candidate
+- image sample の diagram transcription
+- 形式別の warning 一覧
+
+通過条件:
+
+- HTML と PDF は検索に投入できる baseline text になっている。
+- image は完全自動 OCR ではなく、review 前提の diagram text として扱える。
+- Phase 6 の organized data bridge に渡す入力が揃っている。
+
 ## Phase 6: organized_data bridge
 
 目的:
@@ -207,3 +292,50 @@ HTML snapshot から検索に使える主本文を取り出す。
 
 - extractor の first cut と organized data bridge の境界が維持されている。
 - 次に UI / search index へ渡すデータ形が説明できる。
+
+## Review 3: Organized Data Review
+
+対象:
+
+- `organized_data/{item_id}/index.md`
+- `organized_data/{item_id}/source_refs.json`
+- `library_records/items.jsonl`
+- metadata header
+- search / UI に渡す最終的な text
+
+確認観点:
+
+- `index.md` の先頭が metadata header contract に合っているか。
+- 必須項目 `収集日`, `収集URL`, `ファイルの要約`, `タグ` があるか。
+- 不明値が空欄ではなく `未確認` になっているか。
+- local source の URL が `local:` prefix になっているか。
+- `source_refs.json` で元 source を辿れるか。
+- metadata header と structured data が矛盾していないか。
+- PDF caption や image diagram transcription が、読み物として自然に整理されているか。
+
+レビュー成果物:
+
+- サンプル `organized_data/{item_id}/index.md`
+- サンプル `source_refs.json`
+- サンプル `items.jsonl`
+- 回帰確認結果
+
+通過条件:
+
+- ユーザーが organized item を読んで文脈を理解できる。
+- 非 AI 検索に渡す text と metadata が揃っている。
+- 次工程の UI / search index 実装に進める。
+
+## 実装順まとめ
+
+1. Phase 0: 環境と依存の固定
+2. Phase 1: Extraction contract 更新
+3. Phase 2: metadata header adapter
+4. Review 1: Contract Review
+5. Phase 3: HTML extractor first cut
+6. Phase 4: PDF coordinate extraction first cut
+7. Phase 5: Image OCR candidate と diagram transcription
+8. Review 2: Extractor Output Review
+9. Phase 6: organized_data bridge
+10. Phase 7: 回帰確認
+11. Review 3: Organized Data Review
