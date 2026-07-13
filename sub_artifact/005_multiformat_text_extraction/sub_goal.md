@@ -9,6 +9,7 @@ first cut を独立した workstream として定義する。
 
 - `sub_artifact/005_multiformat_text_extraction/artifact.md`
 - `sub_artifact/005_multiformat_text_extraction/implementation_phases.md`
+- `sub_artifact/005_multiformat_text_extraction/review_1_contract_review_report.md`
 - `sub_artifact/005_multiformat_text_extraction/plan.md`
 - `sub_artifact/005_multiformat_text_extraction/work_log.md`
 - `issue_log/005_multiformat_text_extraction/issue_6_multiformat_text_extraction_plan.md`

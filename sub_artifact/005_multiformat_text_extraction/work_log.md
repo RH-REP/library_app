@@ -62,3 +62,8 @@
 - worker が統合確認を行い、`figure_text` を `plain_text.txt` に default で混ぜない方針へ README を調整した。
 - `structured_text.json` を Phase 1 の追加出力として採用した。
 - Python compile、JSON 構文確認、`write_extraction_result()` の一時出力確認を行った。
+
+## 2026-07-13 follow-up: Review 1 report
+
+- ユーザーの質問に合わせて、Review 1 の report を作成した。
+- 手元で試すための Python compile、JSON syntax check、contract output smoke test のコマンドを記載した。

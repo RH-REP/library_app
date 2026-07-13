@@ -295,6 +295,15 @@ Phase 1 で固定した出力:
 - `plain_text.txt` には metadata header を付けない。
 - metadata header は後続の organizer が `organized_data/{item_id}/index.md` に付ける。
 
+## Review 1 report
+
+Phase 1 の contract review 用に
+`sub_artifact/005_multiformat_text_extraction/review_1_contract_review_report.md`
+を追加した。
+
+この report には、レビュー対象、確認してほしい判断、通過条件、手元で試せる
+Python compile / JSON syntax check / contract output smoke test のコマンドをまとめた。
+
 ## 2026-07-13 follow-up: program skeleton
 
 Issue #7 で、Python extractor の置き場は
