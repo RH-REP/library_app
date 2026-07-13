@@ -78,11 +78,15 @@
 
 ## Follow-up: repository top entrypoint
 
-追加コメントで、`libraly_app` の top `index.html` から現在の demo app へジャンプできるようにしたいという依頼があった。
+追加指示で、`libraly_app` の top の `index.html` を作り、現在のデモアプリへジャンプする導線がほしいという依頼があった。
 
 対応:
 
-- root の `index.html` を追加した。
-- `index.html` は `main_artifact/web_app/index.html` へ即時遷移する。
-- 自動遷移が効かない環境でも同じ demo viewer を開けるように、fallback link を置いた。
+- repository root に `index.html` を追加した。
+- root の `index.html` は `main_artifact/web_app/index.html` へ即時遷移し、fallback として同じ遷移先へのリンクも表示する。
 - GitHub Pages 用の `docs/index.html` と、repository top 用の root `index.html` の役割を分けた。
+- `origin` remote は `RH-REP/library_app.git` であり、公開 URL は `https://rh-rep.github.io/library_app/main_artifact/web_app/index.html` として確認した。
+
+判断:
+
+- GitHub Pages root は追加前の公開状態では README を表示していたため、root に `index.html` を置くことで Pages root からも demo viewer に入れる形にした。

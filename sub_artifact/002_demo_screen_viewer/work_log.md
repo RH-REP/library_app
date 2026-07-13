@@ -44,6 +44,8 @@
 
 ## 2026-07-13 follow-up 2
 
-- `libraly_app` repository top の `index.html` 作成依頼を受領した。
-- root の `index.html` を追加し、現在の demo app `main_artifact/web_app/index.html` へ即時遷移する入口にした。
+- 追加指示「libraly_app の top の index.html を作り、今のデモアプリにジャンプするよう誘導して」を受領した。
+- repository root に `index.html` を追加し、`main_artifact/web_app/index.html` へ即時遷移する導線を作成した。
 - `docs/index.html` は GitHub Pages `/docs` source 用、root `index.html` は repository top 用の入口として役割を分けた。
+- `https://rh-rep.github.io/library_app/` と `https://rh-rep.github.io/library_app/main_artifact/web_app/index.html` の HTTP 200 応答を確認した。
+- root は追加前の公開状態では README を表示していたため、`index.html` push 後に Pages root から demo viewer へ遷移する想定にした。

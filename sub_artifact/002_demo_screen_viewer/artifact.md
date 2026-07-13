@@ -7,9 +7,9 @@ Issue #2 の依頼に対して、HTML のデモ画面を作成した。
 - `main_artifact/web_app_directory_plan.md`
 - `main_artifact/web_app/README.md`
 - `main_artifact/web_app/index.html`
+- `index.html`
 - `main_artifact/private_data/programming_tech_library/README.md`
 - `main_artifact/fixtures/demo_programming_tech_library/README.md`
-- `index.html`
 - `sub_artifact/002_demo_screen_viewer/demo.html`
 - `docs/index.html`
 - `docs/main_artifact/web_app/index.html`
@@ -31,8 +31,9 @@ Issue #2 の依頼に対して、HTML のデモ画面を作成した。
 - `main_artifact` の現在構想に沿って、Web app 本体、個別データ、fixture の README/plan をフォルダツリー内に表示し、右側 viewer で開ける。
 - デモを HTTP 経由で開いた場合は、対応する `main_artifact/...` または `docs/main_artifact/...` の実ファイルを読み込む。直接ファイルとして開いた場合も同内容の fallback を表示する。
 - GitHub Pages 用に `docs/` 配下へ公開コピーを置いた。
-- Pages が有効になると `https://rh-rep.github.io/libraly_app/` から確認できる。
-- repository top の `index.html` からも現在の demo viewer へ即時遷移できる。
+- Pages が有効になると `https://rh-rep.github.io/library_app/` から確認できる。
+- repository root 用に `index.html` を追加し、GitHub Pages root またはローカルの top から `main_artifact/web_app/index.html` へ即時遷移できるようにした。
+- 現在の `origin` は `RH-REP/library_app.git` で、公開確認 URL は `https://rh-rep.github.io/library_app/main_artifact/web_app/index.html`。
 
 ## 参照した既存資料
 
