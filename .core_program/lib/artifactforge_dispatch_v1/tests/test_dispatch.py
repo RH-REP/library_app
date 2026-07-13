@@ -276,7 +276,10 @@ class DispatchTest(unittest.TestCase):
                 '"rewrite_comment_before_posting_if_paths_are_not_clickable": true',
                 worker_prompt,
             )
-            self.assertIn("追加したもの: flat bullet list of clickable links", worker_prompt)
+            self.assertIn("まず見るべきファイル:", worker_prompt)
+            self.assertIn("変更の要点:", worker_prompt)
+            self.assertIn("詳細:", worker_prompt)
+            self.assertIn("変更点:", worker_prompt)
             self.assertIn('"push_required": true', worker_prompt)
             self.assertIn("- recipient_role: router", router_prompt)
             self.assertIn(f"- target_session_id: {ROUTER_SESSION_ID}", router_prompt)
