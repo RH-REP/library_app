@@ -71,6 +71,7 @@ Python extractor を実装する前に、実行環境で使える parser / OCR /
 
 - `main_artifact/library_skill/extractors/common.py`
 - `main_artifact/library_skill/schemas/extraction_record.schema.json`
+- `main_artifact/library_skill/schemas/structured_text.schema.json`
 - `main_artifact/library_skill/extractors/README.md`
 
 追加する候補 field:
@@ -86,13 +87,15 @@ Python extractor を実装する前に、実行環境で使える parser / OCR /
 出力方針:
 
 - `plain_text.txt` は検索投入用の合成 text として残す。
-- `extraction_record.json` に structured field と warnings を残す。
+- `extraction_record.json` に source、status、method、warnings などの machine metadata を残す。
+- `structured_text.json` に body / caption / figure / diagram transcription の field を残す。
 - 図表 OCR の低信頼 text は `plain_text.txt` に無条件で混ぜない。
 
 完了条件:
 
 - extractor 本体が未実装でも、拡張 contract の schema と dataclass が一致している。
 - 旧 contract の `plain_text.txt` / `extraction_record.json` は壊さない。
+- 追加出力の `structured_text.json` は schema で検証できる。
 
 ## Phase 2: metadata header adapter
 
@@ -137,7 +140,9 @@ metadata header 形式:
 
 - `ExtractionResult` / `ExtractionRecord`
 - `extraction_record.schema.json`
+- `structured_text.schema.json`
 - `plain_text.txt` / `extraction_record.json` の出力 contract
+- `structured_text.json` の出力 contract
 - `metadata_header_contract.md` との接続
 - `extracted_text/` と `organized_data/` の境界
 
@@ -155,6 +160,7 @@ metadata header 形式:
 - contract 差分
 - schema 差分
 - サンプル `extraction_record.json`
+- サンプル `structured_text.json`
 - サンプル metadata header
 
 通過条件:
@@ -282,7 +288,7 @@ HTML snapshot から検索に使える主本文を取り出す。
 確認項目:
 
 - HTML / PDF / image 各 sample で extractor が終了する。
-- `plain_text.txt` と `extraction_record.json` が生成される。
+- `plain_text.txt`、`extraction_record.json`、`structured_text.json` が生成される。
 - PDF は body と caption が分離される。
 - image は低信頼 OCR を `needs_review` として扱える。
 - organized index は metadata header contract に合っている。

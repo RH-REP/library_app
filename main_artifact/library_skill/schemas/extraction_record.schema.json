@@ -8,26 +8,37 @@
     "source_path",
     "media_type",
     "extractor",
+    "extraction_method",
     "status",
     "warnings",
+    "layout_warnings",
     "ocr_used",
     "language_hint"
   ],
   "properties": {
     "source_id": {
-      "type": "string"
+      "type": "string",
+      "description": "Stable identifier for the source item being extracted."
     },
     "source_path": {
-      "type": "string"
+      "type": "string",
+      "description": "Path to the archived source file used as extractor input."
     },
     "media_type": {
-      "type": "string"
+      "type": "string",
+      "description": "Detected or declared media type for the source file."
     },
     "extractor": {
-      "type": "string"
+      "type": "string",
+      "description": "Extractor implementation or module name."
+    },
+    "extraction_method": {
+      "type": "string",
+      "description": "High-level extraction path used for this source, such as native text extraction, OCR, or manual transcription."
     },
     "status": {
       "type": "string",
+      "description": "Machine-readable extraction outcome.",
       "enum": [
         "ok",
         "needs_ocr",
@@ -37,15 +48,25 @@
     },
     "warnings": {
       "type": "array",
+      "description": "General machine warnings produced during extraction.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "layout_warnings": {
+      "type": "array",
+      "description": "Warnings about layout fidelity, reading order, captions, figures, diagrams, tables, or other structure-sensitive extraction issues.",
       "items": {
         "type": "string"
       }
     },
     "ocr_used": {
-      "type": "boolean"
+      "type": "boolean",
+      "description": "Whether OCR was used for any part of the extraction."
     },
     "language_hint": {
-      "type": "string"
+      "type": "string",
+      "description": "Optional language hint supplied to or detected by the extractor."
     }
   }
 }

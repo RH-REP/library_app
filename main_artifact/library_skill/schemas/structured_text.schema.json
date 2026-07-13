@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "StructuredText",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "body_text",
+    "caption_text",
+    "figure_text",
+    "diagram_transcription"
+  ],
+  "properties": {
+    "body_text": {
+      "type": "string",
+      "description": "Main readable text extracted from the source, excluding separately captured captions, figures, and diagram transcriptions where practical."
+    },
+    "caption_text": {
+      "type": "string",
+      "description": "Caption text extracted from figures, images, tables, screenshots, or other labeled visual elements."
+    },
+    "figure_text": {
+      "type": "string",
+      "description": "Text detected inside figures, screenshots, charts, or embedded images."
+    },
+    "diagram_transcription": {
+      "type": "string",
+      "description": "Human- or machine-readable transcription of diagram structure, flows, labels, relationships, or other non-linear visual content."
+    }
+  }
+}

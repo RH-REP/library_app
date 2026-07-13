@@ -54,3 +54,11 @@
 - ユーザーの追加指示により、実装工程を 3 段階レビュー方式に変更した。
 - Review 1: Contract Review、Review 2: Extractor Output Review、Review 3: Organized Data Review を定義した。
 - Phase 0-7 を各 review gate の前後に配置し直した。
+
+## 2026-07-13 follow-up: Phase 1 contract implementation
+
+- ユーザーの追加指示により、Phase 1 を機能単位でサブエージェントへ分担した。
+- Python contract helper と schema/docs を別サブエージェントに分けた。
+- worker が統合確認を行い、`figure_text` を `plain_text.txt` に default で混ぜない方針へ README を調整した。
+- `structured_text.json` を Phase 1 の追加出力として採用した。
+- Python compile、JSON 構文確認、`write_extraction_result()` の一時出力確認を行った。
