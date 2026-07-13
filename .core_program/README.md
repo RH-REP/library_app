@@ -259,6 +259,18 @@ python3 .core_program/app/02_dispatch_queue/run_dispatch_queue.py --dry-run
 python3 .core_program/app/02_dispatch_queue/run_session_resume.py --dry-run
 ```
 
+現在の worker session を index 付きで一覧表示したいときは、次を使います。
+
+```sh
+python3 .core_program/app/02_dispatch_queue/run_worker_list.py
+```
+
+index を指定してその worker session を resume したいときは、次を使います。
+
+```sh
+python3 .core_program/app/02_dispatch_queue/run_worker_resume.py --index 1
+```
+
 ### Agent Flow Demo Utility
 
 The local demo utility lives at:
