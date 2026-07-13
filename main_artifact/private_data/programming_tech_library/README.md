@@ -48,6 +48,7 @@ programming_tech_library/
 - 原本は `raw_sources/{source_id}/original/` に保存し、原則として変更しない。
 - 抽出 text は `extracted_text/{source_id}/plain_text.txt` に保存する。
 - 整理済みの知識単位は `organized_data/{item_id}/index.md` に保存する。
+- `organized_data/{item_id}/index.md` の冒頭には、収集日、収集URL、要約、タグの metadata block を置く。
 - source と item の対応は `source_refs.json` と `library_records/` で管理する。
 - 実データの大きな PDF、画像、OCR 出力、個人メモは配布用 software 本体とは別物として扱う。
 

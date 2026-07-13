@@ -48,6 +48,7 @@ main_artifact/private_data/programming_tech_library/**
 !main_artifact/private_data/programming_tech_library/**/*.example.json
 !main_artifact/private_data/programming_tech_library/**/*.example.jsonl
 !main_artifact/private_data/programming_tech_library/**/*.example.txt
+!main_artifact/private_data/programming_tech_library/**/_template/*.md
 !main_artifact/private_data/programming_tech_library/process_log.csv
 !main_artifact/private_data/programming_tech_library/library_records/sources.csv
 !main_artifact/fixtures/

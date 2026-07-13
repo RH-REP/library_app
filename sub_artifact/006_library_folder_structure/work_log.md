@@ -23,3 +23,8 @@
 - `process_log.csv`、schema、template、各ディレクトリの README を追加した。
 - `main_artifact/README.md` と `main_artifact/web_app_directory_plan.md` を更新した。
 - 残るレビュー項目を `artifact.md` と issue log に追記した。
+- follow-up comment で、整理済み text 冒頭にメタ情報エリアを作りたいという依頼を確認した。
+- `organized_data/{item_id}/index.md` の metadata block 契約を整理した。
+- `organized_data/_template/index.md`、`organized_data/README.md`、`library_records/items.example.jsonl` を更新した。
+- `sub_artifact/006_library_folder_structure/metadata_header_contract.md` を追加した。
+- `issue_log/006_library_folder_structure/issue_7_organized_text_metadata_contract.md` を追加した。

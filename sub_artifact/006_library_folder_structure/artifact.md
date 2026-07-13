@@ -389,3 +389,41 @@ Python file は、`ExtractionRecord` contract と入口関数を固定する ske
 5. private data をどの範囲まで commit するか
    - README、schema、template は commit してよい。
    - 実PDF、画像、大量OCR出力は private repository でも肥大化しやすいため、後で外部 storage へ逃がす判断が必要になる。
+
+## Follow-up: organized text の冒頭 metadata block
+
+2026-07-13 の follow-up comment で、`organized_data/{contents}/file_A,B,C` に相当する
+整理済み text の冒頭に、収集日、収集URL、ファイルの要約、タグを埋め込む area を
+作りたいという希望が出た。
+
+現在の folder contract では、整理済み text は次に置く。
+
+```text
+main_artifact/private_data/programming_tech_library/organized_data/{item_id}/index.md
+```
+
+この `index.md` の先頭に、次の metadata block を必須で置く。
+
+```text
+""""""
+収集日：YYYY-MM-DD
+収集URL：https://example.com/source
+ファイルの要約：1〜3文で内容を要約する。
+タグ：tag1, tag2
+""""""
+```
+
+契約:
+
+- metadata block は file の先頭行から始める。
+- 開始行と終了行は `""""""` に統一する。
+- 必須項目は `収集日`、`収集URL`、`ファイルの要約`、`タグ` とする。
+- 不明な値は空欄にせず `未確認` と書く。
+- `タグ` は comma-separated にする。
+- header の後に 1 空行を置き、その後に Markdown 本文を書く。
+
+この block は、人間、整理AI、LLM が text file を開いた瞬間に文脈を理解するための
+表示用 metadata である。機械処理の唯一の正本にはせず、`source_refs.json`、
+`library_records/items.jsonl`、source manifest、extraction record と同期して扱う。
+
+詳細は `metadata_header_contract.md` に分けた。
