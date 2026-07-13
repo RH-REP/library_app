@@ -253,6 +253,12 @@ python3 .core_program/app/01_fetch_issue/run_issue_queue.py --dry-run
 python3 .core_program/app/02_dispatch_queue/run_dispatch_queue.py --dry-run
 ```
 
+`request_for_human/` や `human_wating/` の待機記録を見て、ちょうどよい router / worker セッションを resume したいときは、次を使います。
+
+```sh
+python3 .core_program/app/02_dispatch_queue/run_session_resume.py --dry-run
+```
+
 ### Agent Flow Demo Utility
 
 The local demo utility lives at:
