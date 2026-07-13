@@ -18,6 +18,8 @@
 
 ## 成果
 
+次の自作 sample file は 2026-07-13 の follow-up で削除した。
+
 - `main_artifact/fixtures/demo_programming_tech_library/source_samples/html/requirements_engineering_overview.html`
 - `main_artifact/fixtures/demo_programming_tech_library/source_samples/pdf/software_design_principles.pdf`
 - `main_artifact/fixtures/demo_programming_tech_library/source_samples/image/software_quality_practices.png`
@@ -50,7 +52,13 @@
 
 判断:
 
-- 共有しやすい synthetic fixture は残す。
-- 一方で、HTML/PDF/image の実在ソースを別セットで保存し、plain text 化や OCR の
+- HTML/PDF/image の実在ソースを別セットで保存し、plain text 化や OCR の
   前処理検証に使えるようにする。
 - URL、出典、取得日は `actual_web_source_samples.json` に寄せる。
+
+## 2026-07-13 追加対応: 自作 sample file 削除
+
+ユーザーの follow-up に合わせて、上記の synthetic fixture と
+`records/alpha_source_samples.json` は削除した。
+現行の sample set は `source_samples/actual/` と
+`records/actual_web_source_samples.json` のみを使う。

@@ -21,7 +21,8 @@ Issue #6 の follow-up として、HTML / PDF / OCR を Python program で扱う
 - image:
   `main_artifact/fixtures/demo_programming_tech_library/source_samples/actual/image/software_testing_wikipedia.jpg`
 
-synthetic fixture は回帰確認用として残し、初回のノイズ確認は actual source を優先する。
+以前の synthetic fixture は issue #5 の follow-up で削除済みである。
+実装初期の確認では actual source を使う。
 
 ## 共通出力 contract
 

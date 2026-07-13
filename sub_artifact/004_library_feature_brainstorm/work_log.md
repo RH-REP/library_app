@@ -34,3 +34,12 @@
 - `records/actual_web_source_samples.json` に URL、出典、取得日、用途を記録した。
 - `artifact.md`、`sub_goal.md`、`plan.md` に actual source の追記を行った。
 - `issue_log/004_library_feature_brainstorm/issue_5_actual_source_samples.md` を作成した。
+
+## 2026-07-13 follow-up 4: Issue #5 自作 sample file 削除
+
+- ユーザーの追加コメントを確認した。
+- 自作側の synthetic HTML / PDF / image sample を削除した。
+- `records/alpha_source_samples.json` を削除した。
+- actual source sample と `records/actual_web_source_samples.json` は残した。
+- fixture README と artifact を、現行 sample set が actual source 中心である内容へ更新した。
+- `issue_log/004_library_feature_brainstorm/issue_5_remove_synthetic_source_samples.md` を作成した。

@@ -22,3 +22,8 @@
 - 細部実装は入れず、共通 contract に合う `ExtractionResult` を返す構成だけ固定した。
 - `main_artifact/library_skill/README.md` と `extractors/README.md` を雛形配置後の内容へ更新した。
 - `issue_log/005_multiformat_text_extraction/issue_6_extractor_skeleton_from_issue_7_layout.md` を追加した。
+
+## 2026-07-13 follow-up: Issue #5 sample cleanup 反映
+
+- Issue #5 の follow-up により synthetic fixture が削除されたことを確認した。
+- text extraction の入力説明を actual source sample 中心へ更新した。

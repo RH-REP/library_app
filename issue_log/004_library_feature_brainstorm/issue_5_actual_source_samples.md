@@ -7,7 +7,6 @@ URL や出典も md で簡易に残すよう依頼した。
 
 ## 方針
 
-- synthetic fixture は demo / shareable fixture として残す。
 - 実在ソースは別セットとして `source_samples/actual/` に保存する。
 - provenance は JSON index とこの issue log の両方に残す。
 
@@ -55,3 +54,8 @@ URL や出典も md で簡易に残すよう依頼した。
   `main_artifact/fixtures/demo_programming_tech_library/records/actual_web_source_samples.json`
   に保存した。
 - これで issue #6 の HTML/PDF/image -> plain text 機能の入力セットが揃った。
+
+## 2026-07-13 更新
+
+ユーザーの follow-up により、自作側の synthetic sample file は削除した。
+現行の sample set は、この actual source set だけである。
