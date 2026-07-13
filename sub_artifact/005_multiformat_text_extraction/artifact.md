@@ -24,6 +24,77 @@ Issue #6 の follow-up として、HTML / PDF / OCR を Python program で扱う
 以前の synthetic fixture は issue #5 の follow-up で削除済みである。
 実装初期の確認では actual source を使う。
 
+## 2026-07-13 follow-up: PDF / image sample visual review
+
+Issue #6 の追加コメントで、現在の PDF と画像 sample を実際に確認し、
+文字が散らばっている場合にどう文字化するかを整理するよう依頼された。
+
+確認した sample:
+
+- PDF:
+  `main_artifact/fixtures/demo_programming_tech_library/source_samples/pdf/software_through_pictures_arxiv.pdf`
+- image:
+  `main_artifact/fixtures/demo_programming_tech_library/source_samples/image/royce_final_model_waterfall.png`
+
+確認結果:
+
+- PDF は 3 ページの text PDF であり、OCR に回す必要はない。
+- PDF は untagged で、2 段組、図、図キャプション、ヘッダー、フッター、
+  arXiv の縦向きラベルが混在する。
+- `pdftotext -layout` では本文自体は取れるが、図キャプションや右カラムが
+  本文途中に混ざるため、そのまま検索用本文にすると読み順が崩れる。
+- 画像は 900x503 のソフトウェア開発プロセス図で、箱、矢印、点線境界、
+  小さいラベルが多い。
+- Tesseract CLI で原本と 3 倍拡大・二値化版を試したが、通常 OCR では誤読が多く、
+  図全体を文章として復元する用途には不十分である。
+
+この sample に対する判断:
+
+- PDF は「本文抽出」として扱う。ただし、単純なページ全文連結ではなく、
+  座標情報を使って title / abstract / left column / right column / caption /
+  reference を分ける。
+- PDF 内の図中テキストは、本文とは別の optional figure OCR として扱う。
+  first cut では図キャプションを主に取り、図内ラベル OCR は metadata warning 付きにする。
+- 画像は「通常文書」ではなく「図表」として扱う。
+  OCR 結果をそのまま本文にせず、図表タイトル、領域、ノード、関係を構造化した
+  diagram transcription にする。
+- 画像 OCR は automatic final text ではなく、human review 前提の candidate text として扱う。
+
+推奨する出力分解:
+
+- `body_text`: PDF の本文、または HTML の本文。
+- `caption_text`: 図表キャプション。
+- `figure_text`: 図内ラベルや OCR 候補。検索対象にする場合も本文とは別 field。
+- `diagram_transcription`: 画像 sample のような図表を、人間が確認できる構造化テキスト。
+- `layout_warnings`: 2 段組、縦ラベル、図混在、低信頼 OCR などの注意。
+- `extraction_method`: `text_layer`, `coordinate_blocks`, `ocr_candidate`, `manual_reviewed_diagram`
+  などを明示する。
+
+PDF の文字化方針:
+
+1. まず text layer の有無とページ数を確認する。
+2. `pypdf` の単純抽出だけで終わらせず、`PyMuPDF` または `pdfplumber` の
+   word / block 座標を使う。
+3. ページ上部の title block、header、footer、左カラム、右カラム、figure caption を
+   region として分ける。
+4. 各カラム内は top-to-bottom、left-to-right で並べる。
+5. 図キャプションは本文途中に混ぜず、`caption_text` として残す。
+6. arXiv の縦向きラベルや許諾文は `layout_warnings` または低優先 metadata に回す。
+
+画像の文字化方針:
+
+1. 原本画像を grayscale / autocontrast / upscale した OCR candidate を作る。
+2. 画像全体 OCR は参考値に留め、箱単位や領域単位で crop して OCR する。
+3. 右側の simplified waterfall、中央の iterative model、左側の document flow、
+   右上の rule box など、領域ごとに分ける。
+4. OCR confidence が低い場合は、図表の意味を人間が確認した
+   `diagram_transcription` を正式な検索用テキストにする。
+5. 矢印の順序は OCR では取れないため、ノード列と関係を別フィールドにする。
+
+この follow-up により、image OCR は alpha 必須実装ではなく、
+「OCR candidate を出し、必要なら人間レビュー済み diagram transcription を保存できる」
+ところまでを alpha の現実的な範囲とする。
+
 ## 共通出力 contract
 
 3 形式とも、first cut では次の共通 contract を持つ。
@@ -91,6 +162,7 @@ first cut で最低限必要になる skill set は次の通り。
 
 - `pypdf`
 - `PyMuPDF`
+- `pdfplumber`
 
 必要な skill set:
 
@@ -98,11 +170,13 @@ first cut で最低限必要になる skill set は次の通り。
 - ページごとに text を抜き、ページ境界を残す。
 - header / footer / 改ページの扱いを決める。
 - 抽出結果が sparse すぎる場合の fallback を用意する。
+- 2 段組や図が混ざる PDF では、座標付き block / word を使って読み順を作る。
 
 採用理由:
 
 - `pypdf` は pure Python で導入しやすく、`page.extract_text()` の first cut が作りやすい。
 - `PyMuPDF` は `page.get_text()` と block / word 単位の取得があり、読み順崩れや位置情報確認に向く。
+- `pdfplumber` は word / table / crop 操作を使って、2 段組や余白ノイズの処理を確認しやすい。
 - PDF は 1 本のライブラリで完全統一するより、`pypdf` を標準経路、`PyMuPDF` を fallback / 検証経路にした方が現実的である。
 
 ### OCR / image handling

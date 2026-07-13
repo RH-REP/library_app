@@ -11,6 +11,7 @@ first cut を独立した workstream として定義する。
 - `sub_artifact/005_multiformat_text_extraction/plan.md`
 - `sub_artifact/005_multiformat_text_extraction/work_log.md`
 - `issue_log/005_multiformat_text_extraction/issue_6_multiformat_text_extraction_plan.md`
+- `issue_log/005_multiformat_text_extraction/issue_6_pdf_image_sample_textification.md`
 
 ## 範囲
 
@@ -19,6 +20,7 @@ first cut を独立した workstream として定義する。
 - image -> plain text の first cut 契約を定義する。
 - 各機能について 3 段階レビューの工程と完了条件を示す。
 - 入力データとして issue #5 で集めた sample を参照する。
+- 実際の PDF / image sample を確認し、散らばった文字をどう扱うかを決める。
 
 ## 範囲外
 

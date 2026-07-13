@@ -32,3 +32,12 @@
 
 - Issue #5 の follow-up により画像 sample がソフトウェア開発プロセス図へ差し替えられたことを確認した。
 - image OCR の確認対象を `royce_final_model_waterfall.png` に更新した。
+
+## 2026-07-13 follow-up: PDF / image sample visual review
+
+- Issue #6 の追加コメントを確認した。
+- `software_through_pictures_arxiv.pdf` を Poppler で 3 ページ分レンダリングし、2 段組、図、caption、縦向き arXiv ラベルを確認した。
+- `pdftotext -layout` で text layer は抽出できるが、本文と図キャプションが混ざることを確認した。
+- `royce_final_model_waterfall.png` を目視し、Tesseract CLI で原本 OCR と 3 倍拡大・二値化 OCR を試した。
+- 画像 OCR は誤読が多いため、diagram transcription と human review を前提にする判断を artifact に追記した。
+- `issue_log/005_multiformat_text_extraction/issue_6_pdf_image_sample_textification.md` を作成した。
