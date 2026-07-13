@@ -1,0 +1,6 @@
+{
+  "body_text": "",
+  "caption_text": "Phase 0 JPG sample: document intake flow.",
+  "figure_text": "OCR candidate labels: Source file; Extractor; Structured text; Human review; Organized item; Warning examples.",
+  "diagram_transcription": "Diagram transcription:\n- Source file stores HTML, PDF, or JPG in source_samples.\n- Extractor creates plain_text.txt and structured_text.json.\n- Structured text separates body, caption, figure, and diagram fields.\n- Low-confidence OCR goes to Human review before final search use.\n- Organized item receives metadata header and searchable Markdown.\n- Arrows show Source file -> Extractor -> Structured text -> Organized item, with Human review as a correction loop."
+}

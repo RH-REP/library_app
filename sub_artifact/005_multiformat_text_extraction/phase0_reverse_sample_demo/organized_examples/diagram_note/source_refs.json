@@ -1,0 +1,11 @@
+{
+  "item_id": "diagram_note",
+  "source_ids": [
+    "diagram_note_jpg"
+  ],
+  "source_paths": [
+    "generated/image/diagram_note.jpg"
+  ],
+  "expected_extracted_dir": "expected_extracted/diagram_note_jpg",
+  "note": "This is a phase 0 organized example, not production data."
+}

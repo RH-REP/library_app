@@ -1,0 +1,50 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 1350 >>
+stream
+BT /F1 9 Tf 1 0 0 1 72 754 Tm (Header: Library Skill Phase 0 PDF Demo) Tj ET
+BT /F1 18 Tf 1 0 0 1 72 720 Tm (PDF Layout Note) Tj ET
+BT /F1 12 Tf 1 0 0 1 72 690 Tm (Left column) Tj ET
+BT /F1 11 Tf 1 0 0 1 72 670 Tm (Phase 0 PDF sample. The extractor should detect) Tj ET
+BT /F1 11 Tf 1 0 0 1 72 654 Tm (that this PDF has a native text layer before) Tj ET
+BT /F1 11 Tf 1 0 0 1 72 638 Tm (considering OCR. Body text is arranged in a left) Tj ET
+BT /F1 11 Tf 1 0 0 1 72 622 Tm (column and a right column so the future) Tj ET
+BT /F1 11 Tf 1 0 0 1 72 606 Tm (extractor must preserve reading order by using) Tj ET
+BT /F1 11 Tf 1 0 0 1 72 590 Tm (coordinates.) Tj ET
+BT /F1 12 Tf 1 0 0 1 330 690 Tm (Right column) Tj ET
+BT /F1 11 Tf 1 0 0 1 330 670 Tm (The caption below is not part of the main) Tj ET
+BT /F1 11 Tf 1 0 0 1 330 654 Tm (paragraph. It should be stored as) Tj ET
+BT /F1 11 Tf 1 0 0 1 330 638 Tm (caption_text. Header and footer strings) Tj ET
+BT /F1 11 Tf 1 0 0 1 330 622 Tm (are useful for testing whether layout) Tj ET
+BT /F1 11 Tf 1 0 0 1 330 606 Tm (cleanup can ignore repeated noise.) Tj ET
+BT /F1 13 Tf 1 0 0 1 168 470 Tm ([ diagram placeholder ]) Tj ET
+BT /F1 10 Tf 1 0 0 1 120 444 Tm (Figure 1: Expected extraction flow from native PDF text to structured text fields.) Tj ET
+BT /F1 9 Tf 1 0 0 1 72 52 Tm (Footer: local demo page 1) Tj ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f
+0000000015 00000 n
+0000000064 00000 n
+0000000121 00000 n
+0000000247 00000 n
+0000000317 00000 n
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1719
+%%EOF

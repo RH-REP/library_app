@@ -1,0 +1,13 @@
+Title: Minimum library feature note
+
+The alpha library should accept a source file, keep the original file path,
+extract readable text, and create one searchable organized item.
+
+Required behavior:
+- Keep source files separate from software code.
+- Create plain_text.txt for search.
+- Keep metadata in extraction_record.json and source_refs.json.
+- Add a human-readable metadata header only to organized index.md.
+
+Non-goal:
+The alpha does not need automatic summarization or perfect OCR.

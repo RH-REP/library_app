@@ -304,6 +304,42 @@ Phase 1 の contract review 用に
 この report には、レビュー対象、確認してほしい判断、通過条件、手元で試せる
 Python compile / JSON syntax check / contract output smoke test のコマンドをまとめた。
 
+## 2026-07-13 follow-up: Phase 0 reverse sample demo
+
+Issue #6 の追加コメントで、完成品の実態がつかみにくいため Phase 0 に戻り、
+サンプル文章から逆向きに HTML / PDF / JPG を作り、将来どのような処理をする予定か
+分かる sub-artifact を作成するよう依頼された。
+
+今回追加した確認用 directory:
+
+- `sub_artifact/005_multiformat_text_extraction/phase0_reverse_sample_demo/`
+
+見る順序:
+
+1. `source_texts/` で元文章を確認する。
+2. `generated/` で、その元文章から生成した HTML / PDF / JPG を確認する。
+3. `expected_extracted/` で、extractor が作るべき `plain_text.txt`,
+   `extraction_record.json`, `structured_text.json` を確認する。
+4. `organized_examples/` で、Issue #7 の metadata header contract に沿った
+   `index.md` と `source_refs.json` を確認する。
+5. `manifest.json` で対応関係を確認する。
+
+この demo の役割:
+
+- HTML は、`nav` / `footer` を落として本文、見出し、箇条書きを
+  `body_text` にする想定を示す。
+- PDF は、OCR ではなく native text layer を確認し、2 段組の読み順と
+  caption 分離を行う想定を示す。
+- JPG は、OCR 候補だけでは図の矢印関係を復元できないため、
+  `figure_text` と human review 済み `diagram_transcription` を分ける想定を示す。
+
+重要な境界:
+
+- `expected_extracted/*/plain_text.txt` には metadata header を付けない。
+- metadata header は `organized_examples/*/index.md` の冒頭だけに置く。
+- この demo は実装完了品ではなく、Phase 0 の「完成形をイメージするための
+  逆生成サンプル」である。
+
 ## 2026-07-13 follow-up: program skeleton
 
 Issue #7 で、Python extractor の置き場は

@@ -1,0 +1,5 @@
+Title: Diagram note
+
+This text becomes a JPG diagram. The future image extractor should not pretend
+that OCR alone can understand the diagram. It should save OCR candidates as
+figure_text, then rely on a reviewed diagram_transcription for search.

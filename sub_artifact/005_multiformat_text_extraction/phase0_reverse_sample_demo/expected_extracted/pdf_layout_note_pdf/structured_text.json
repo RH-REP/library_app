@@ -1,0 +1,6 @@
+{
+  "body_text": "PDF Layout Note\n\nPhase 0 PDF sample. The extractor should detect that this PDF has a native text layer before considering OCR. Body text is arranged in a left column and a right column so the future extractor must preserve reading order by using coordinates.\n\nThe caption below is not part of the main paragraph. It should be stored as caption_text. Header and footer strings are useful for testing whether layout cleanup can ignore repeated noise.",
+  "caption_text": "Figure 1: Expected extraction flow from native PDF text to structured text fields.",
+  "figure_text": "",
+  "diagram_transcription": ""
+}

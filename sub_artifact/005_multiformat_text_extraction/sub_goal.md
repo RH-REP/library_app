@@ -10,10 +10,13 @@ first cut を独立した workstream として定義する。
 - `sub_artifact/005_multiformat_text_extraction/artifact.md`
 - `sub_artifact/005_multiformat_text_extraction/implementation_phases.md`
 - `sub_artifact/005_multiformat_text_extraction/review_1_contract_review_report.md`
+- `sub_artifact/005_multiformat_text_extraction/phase0_reverse_sample_demo/README.md`
+- `sub_artifact/005_multiformat_text_extraction/phase0_reverse_sample_demo/manifest.json`
 - `sub_artifact/005_multiformat_text_extraction/plan.md`
 - `sub_artifact/005_multiformat_text_extraction/work_log.md`
 - `issue_log/005_multiformat_text_extraction/issue_6_multiformat_text_extraction_plan.md`
 - `issue_log/005_multiformat_text_extraction/issue_6_pdf_image_sample_textification.md`
+- `issue_log/005_multiformat_text_extraction/issue_6_phase0_reverse_sample_demo.md`
 
 ## 範囲
 
@@ -24,6 +27,7 @@ first cut を独立した workstream として定義する。
 - 入力データとして issue #5 で集めた sample を参照する。
 - 実際の PDF / image sample を確認し、散らばった文字をどう扱うかを決める。
 - Issue #7 の metadata header contract を実装工程へ取り込む。
+- 元文章から HTML / PDF / JPG を逆生成し、期待抽出結果と organized example を並べる。
 
 ## 範囲外
 

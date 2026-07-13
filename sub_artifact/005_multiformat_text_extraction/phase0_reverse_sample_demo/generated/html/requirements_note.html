@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Minimum library feature note</title>
+  <style>nav, footer { color: #777; }</style>
+</head>
+<body>
+  <nav>Home | Tags | Folder map | Import queue</nav>
+  <main>
+    <article>
+      <h1>Minimum library feature note</h1>
+      <p>The alpha library should accept a source file, keep the original file path, extract readable text, and create one searchable organized item.</p>
+      <h2>Required behavior</h2>
+      <ul>
+        <li>Keep source files separate from software code.</li>
+        <li>Create <code>plain_text.txt</code> for search.</li>
+        <li>Keep metadata in <code>extraction_record.json</code> and <code>source_refs.json</code>.</li>
+        <li>Add a human-readable metadata header only to organized <code>index.md</code>.</li>
+      </ul>
+      <h2>Non-goal</h2>
+      <p>The alpha does not need automatic summarization or perfect OCR.</p>
+    </article>
+  </main>
+  <footer>Demo footer that the extractor should treat as navigation noise.</footer>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "source_id": "requirements_note_html",
+  "source_path": "generated/html/requirements_note.html",
+  "media_type": "text/html",
+  "extractor": "html_to_text",
+  "status": "ok",
+  "warnings": [
+    "navigation and footer should be removed before indexing"
+  ],
+  "ocr_used": false,
+  "language_hint": "eng",
+  "layout_warnings": [],
+  "extraction_method": "html_dom_cleanup"
+}

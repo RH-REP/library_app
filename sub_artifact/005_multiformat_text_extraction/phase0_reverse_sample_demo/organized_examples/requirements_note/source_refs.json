@@ -1,0 +1,11 @@
+{
+  "item_id": "requirements_note",
+  "source_ids": [
+    "requirements_note_html"
+  ],
+  "source_paths": [
+    "generated/html/requirements_note.html"
+  ],
+  "expected_extracted_dir": "expected_extracted/requirements_note_html",
+  "note": "This is a phase 0 organized example, not production data."
+}

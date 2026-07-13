@@ -1,0 +1,9 @@
+Title: PDF layout note
+
+This source text is rendered into a two-column PDF. The expected extractor
+should use the native text layer, identify header and footer noise, keep body
+text in reading order, and store the figure caption separately.
+
+Caption:
+Figure 1: Expected extraction flow from native PDF text to structured text
+fields.

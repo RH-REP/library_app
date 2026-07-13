@@ -45,6 +45,8 @@ Phase 6-7
 
 目的:
 Python extractor を実装する前に、実行環境で使える parser / OCR / PDF tool を確認する。
+また、完成品の実態を確認できるように、元文章から HTML / PDF / JPG を逆生成した
+Phase 0 demo を用意し、期待される抽出結果を先に固定する。
 
 作業:
 
@@ -55,11 +57,19 @@ Python extractor を実装する前に、実行環境で使える parser / OCR /
 - Tesseract の language pack を確認する。
   first cut は `eng`、必要が出た時点で `jpn` を追加する。
 - sample 3 件を Python から読めることを確認する。
+- `phase0_reverse_sample_demo/source_texts/` に元文章 3 件を置く。
+- 元文章から `generated/html/`, `generated/pdf/`, `generated/image/` を作る。
+- `expected_extracted/` に `plain_text.txt`, `extraction_record.json`,
+  `structured_text.json` の期待出力を置く。
+- `organized_examples/` に metadata header 付き `index.md` と `source_refs.json`
+  を置く。
 
 完了条件:
 
 - 不足 dependency が明示されている。
 - 実装前に、HTML / PDF / image のどれを先に動かせるか判断できる。
+- ユーザーが source text -> generated source -> expected extraction ->
+  organized item の流れを手元で追える。
 
 ## Phase 1: Extraction contract 更新
 

@@ -1,0 +1,9 @@
+Phase 0 JPG sample: document intake flow.
+
+Diagram transcription:
+- Source file stores HTML, PDF, or JPG in source_samples.
+- Extractor creates plain_text.txt and structured_text.json.
+- Structured text separates body, caption, figure, and diagram fields.
+- Low-confidence OCR goes to Human review before final search use.
+- Organized item receives metadata header and searchable Markdown.
+- Arrows show Source file -> Extractor -> Structured text -> Organized item, with Human review as a correction loop.

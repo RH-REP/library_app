@@ -67,3 +67,15 @@
 
 - ユーザーの質問に合わせて、Review 1 の report を作成した。
 - 手元で試すための Python compile、JSON syntax check、contract output smoke test のコマンドを記載した。
+
+## 2026-07-13 follow-up: Phase 0 reverse sample demo
+
+- ユーザーの追加指示により、完成品イメージを確認するため Phase 0 に戻した。
+- `phase0_reverse_sample_demo/` を追加し、3 つの元文章を `source_texts/` に置いた。
+- 元文章から HTML / PDF / JPG を `generated/` に逆生成した。
+- 将来 extractor が出すべき `plain_text.txt`、`extraction_record.json`、
+  `structured_text.json` を `expected_extracted/` に置いた。
+- Issue #7 の metadata header contract に沿う `organized_examples/*/index.md` と
+  `source_refs.json` を追加した。
+- `manifest.json` と `README.md` に、source text から organized item までの対応関係と
+  確認コマンドをまとめた。

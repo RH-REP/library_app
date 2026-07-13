@@ -1,0 +1,49 @@
+{
+  "artifact": "phase0_reverse_sample_demo",
+  "generated_at": "2026-07-13",
+  "purpose": "Make the future extraction pipeline tangible by generating HTML, PDF, and JPG from known source texts, then storing the expected extraction outputs.",
+  "samples": [
+    {
+      "source_id": "requirements_note_html",
+      "source_text": "source_texts/requirements_note.txt",
+      "generated_file": "generated/html/requirements_note.html",
+      "media_type": "text/html",
+      "expected_extracted_dir": "expected_extracted/requirements_note_html",
+      "organized_example_dir": "organized_examples/requirements_note",
+      "planned_processing": [
+        "read generated source",
+        "write plain_text.txt without metadata header",
+        "write extraction_record.json and structured_text.json",
+        "write organized index.md with metadata header"
+      ]
+    },
+    {
+      "source_id": "pdf_layout_note_pdf",
+      "source_text": "source_texts/pdf_layout_note.txt",
+      "generated_file": "generated/pdf/pdf_layout_note.pdf",
+      "media_type": "application/pdf",
+      "expected_extracted_dir": "expected_extracted/pdf_layout_note_pdf",
+      "organized_example_dir": "organized_examples/pdf_layout_note",
+      "planned_processing": [
+        "read generated source",
+        "write plain_text.txt without metadata header",
+        "write extraction_record.json and structured_text.json",
+        "write organized index.md with metadata header"
+      ]
+    },
+    {
+      "source_id": "diagram_note_jpg",
+      "source_text": "source_texts/diagram_note.txt",
+      "generated_file": "generated/image/diagram_note.jpg",
+      "media_type": "image/jpeg",
+      "expected_extracted_dir": "expected_extracted/diagram_note_jpg",
+      "organized_example_dir": "organized_examples/diagram_note",
+      "planned_processing": [
+        "read generated source",
+        "write plain_text.txt without metadata header",
+        "write extraction_record.json and structured_text.json",
+        "write organized index.md with metadata header"
+      ]
+    }
+  ]
+}

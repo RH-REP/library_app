@@ -1,0 +1,18 @@
+{
+  "source_id": "pdf_layout_note_pdf",
+  "source_path": "generated/pdf/pdf_layout_note.pdf",
+  "media_type": "application/pdf",
+  "extractor": "pdf_to_text",
+  "status": "ok",
+  "warnings": [
+    "header and footer are layout noise and should not dominate search text"
+  ],
+  "ocr_used": false,
+  "language_hint": "eng",
+  "layout_warnings": [
+    "two-column reading order",
+    "caption should be separated from body_text",
+    "native text layer is present"
+  ],
+  "extraction_method": "text_layer_coordinate_blocks"
+}

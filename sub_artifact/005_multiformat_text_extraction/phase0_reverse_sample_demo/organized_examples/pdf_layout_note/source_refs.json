@@ -1,0 +1,11 @@
+{
+  "item_id": "pdf_layout_note",
+  "source_ids": [
+    "pdf_layout_note_pdf"
+  ],
+  "source_paths": [
+    "generated/pdf/pdf_layout_note.pdf"
+  ],
+  "expected_extracted_dir": "expected_extracted/pdf_layout_note_pdf",
+  "note": "This is a phase 0 organized example, not production data."
+}
