@@ -28,3 +28,8 @@
 - `organized_data/_template/index.md`、`organized_data/README.md`、`library_records/items.example.jsonl` を更新した。
 - `sub_artifact/006_library_folder_structure/metadata_header_contract.md` を追加した。
 - `issue_log/006_library_folder_structure/issue_7_organized_text_metadata_contract.md` を追加した。
+- follow-up comment で、既存 viewer demo と組み合わせた静的HTMLで完成品イメージを作る依頼を確認した。
+- `sub_artifact/006_library_folder_structure/viewer_demo.html` を追加した。
+- GitHub Pages 用に `docs/sub_artifact/006_library_folder_structure/viewer_demo.html` へ同じ HTML をミラーした。
+- Explorer、metadata header panel、raw content pane、source pipeline を 1 つの静的HTMLで確認できるようにした。
+- HTML parse、duplicate id check、docs mirror の一致確認、埋め込み JavaScript の `node --check` を実行した。

@@ -427,3 +427,38 @@ main_artifact/private_data/programming_tech_library/organized_data/{item_id}/ind
 `library_records/items.jsonl`、source manifest、extraction record と同期して扱う。
 
 詳細は `metadata_header_contract.md` に分けた。
+
+## Follow-up: viewer demo と組み合わせた完成イメージ
+
+2026-07-14 の follow-up comment で、既存の viewer demo と組み合わせて、
+動的アプリではない静的HTMLで完成品をイメージできるものを作るよう依頼された。
+
+これを受けて、次の static HTML を追加した。
+
+```text
+sub_artifact/006_library_folder_structure/viewer_demo.html
+docs/sub_artifact/006_library_folder_structure/viewer_demo.html
+```
+
+この prototype では、既存 viewer demo の Explorer / preview / raw editor の感触を残しつつ、
+Issue #7 で決めた次の構成を同一画面に載せている。
+
+- `input/inbox/`
+- `raw_sources/{source_id}/`
+- `extracted_text/{source_id}/`
+- `organized_data/{item_id}/index.md`
+- `library_records/items.example.jsonl`
+- `process_log.csv`
+
+完成イメージとして確認する点:
+
+- 左ペインで folder/file tree を見る。
+- `organized_data` の item を選ぶと、冒頭 metadata block が structured panel として見える。
+- 右側の raw pane では、実際の `index.md` text と quoted metadata block をそのまま見られる。
+- source pipeline で、input、raw source、extracted text、organized item の対応を確認できる。
+
+実装範囲:
+
+- static HTML / CSS / JavaScript のみ。
+- backend、保存処理、実ファイル読み込みは含めない。
+- 完成品の UX イメージ確認用であり、production app の実装ではない。

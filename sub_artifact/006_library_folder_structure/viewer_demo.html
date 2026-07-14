@@ -1,0 +1,1269 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Library Folder Structure Viewer Demo</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #17191c;
+        --panel: #22262b;
+        --panel-2: #1d2126;
+        --panel-3: #15181b;
+        --line: #3a4149;
+        --line-soft: #2f363d;
+        --text: #eceff2;
+        --muted: #aab3bd;
+        --muted-2: #7f8a95;
+        --accent: #4fb286;
+        --accent-soft: rgba(79, 178, 134, .16);
+        --amber: #d7ba7d;
+        --blue: #8cc8ff;
+        --danger: #d86f6f;
+        --code: #111315;
+        --focus: #66a9e8;
+        --shadow: 0 18px 44px rgba(0, 0, 0, .3);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+      }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+      }
+
+      button {
+        color: inherit;
+      }
+
+      .app-shell {
+        display: grid;
+        grid-template-columns: clamp(300px, 28vw, 430px) minmax(0, 1fr);
+        height: 100dvh;
+        overflow: hidden;
+      }
+
+      .sidebar {
+        min-width: 0;
+        min-height: 0;
+        display: grid;
+        grid-template-rows: auto auto auto minmax(0, 1fr);
+        border-right: 1px solid var(--line);
+        background: var(--panel);
+        overflow: hidden;
+      }
+
+      .workspace-bar {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 12px;
+        border-bottom: 1px solid var(--line-soft);
+        background: #1c2024;
+      }
+
+      .workspace-mark {
+        width: 18px;
+        height: 18px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 3px;
+      }
+
+      .workspace-mark span {
+        border: 1px solid rgba(236, 239, 242, .42);
+        background: rgba(79, 178, 134, .2);
+      }
+
+      .workspace-title {
+        min-width: 0;
+        flex: 1 1 auto;
+        color: #d9dee3;
+        font-size: 12px;
+        font-weight: 700;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .icon-button {
+        width: 30px;
+        height: 30px;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        display: inline-grid;
+        place-items: center;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+      }
+
+      .icon-button:hover,
+      .icon-button.is-active {
+        border-color: #46505a;
+        background: #343b43;
+        color: var(--text);
+      }
+
+      .icon-button.primary {
+        border-color: rgba(79, 178, 134, .75);
+        background: #2a664e;
+        color: #effff8;
+      }
+
+      .icon-button svg,
+      .tree-icon svg,
+      .tree-expander svg,
+      .segmented svg {
+        width: 16px;
+        height: 16px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .filter-panel {
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+        border-bottom: 1px solid var(--line-soft);
+      }
+
+      .search-wrap {
+        position: relative;
+      }
+
+      .search-wrap svg {
+        position: absolute;
+        top: 50%;
+        left: 10px;
+        width: 16px;
+        height: 16px;
+        transform: translateY(-50%);
+        color: var(--muted-2);
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.9;
+      }
+
+      .search-input,
+      .filter-select,
+      .raw-text {
+        width: 100%;
+        border: 1px solid #434b54;
+        border-radius: 6px;
+        background: #171a1e;
+        color: var(--text);
+        outline: 0;
+      }
+
+      .search-input {
+        height: 34px;
+        padding: 0 10px 0 34px;
+      }
+
+      .search-input:focus,
+      .filter-select:focus,
+      .raw-text:focus {
+        border-color: var(--focus);
+        box-shadow: 0 0 0 2px rgba(102, 169, 232, .22);
+      }
+
+      .filter-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .filter-select {
+        height: 32px;
+        padding: 0 8px;
+      }
+
+      .tree-heading {
+        min-height: 34px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 12px;
+        border-bottom: 1px solid var(--line-soft);
+        background: #242930;
+        color: #d8dee5;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .match-count {
+        color: var(--muted-2);
+        font-size: 12px;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+
+      .tree {
+        min-height: 0;
+        overflow: auto;
+        padding: 6px 6px 16px;
+      }
+
+      .tree-item {
+        width: 100%;
+        min-height: 30px;
+        display: grid;
+        grid-template-columns: 18px 18px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        padding: 3px 8px 3px calc(8px + var(--depth) * 16px);
+        background: transparent;
+        color: var(--muted);
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .tree-item:hover,
+      .tree-item.is-selected {
+        background: #30363d;
+        color: var(--text);
+      }
+
+      .tree-item.is-selected {
+        border-color: rgba(79, 178, 134, .72);
+        background: var(--accent-soft);
+      }
+
+      .tree-expander {
+        width: 16px;
+        height: 16px;
+        display: grid;
+        place-items: center;
+        color: var(--muted-2);
+      }
+
+      .tree-icon {
+        color: var(--amber);
+      }
+
+      .tree-icon.file {
+        color: var(--blue);
+      }
+
+      .tree-name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .kind-pill {
+        min-width: 42px;
+        border: 1px solid rgba(170, 179, 189, .22);
+        border-radius: 999px;
+        padding: 1px 7px;
+        color: var(--muted);
+        font-size: 11px;
+        text-align: center;
+      }
+
+      .content {
+        min-width: 0;
+        min-height: 0;
+        display: grid;
+        grid-template-rows: auto auto minmax(0, 1fr);
+        overflow: hidden;
+        background: #191c20;
+      }
+
+      .tab-strip {
+        min-height: 38px;
+        display: flex;
+        align-items: end;
+        padding: 0 12px;
+        border-bottom: 1px solid var(--line-soft);
+        background: #15181b;
+      }
+
+      .tab {
+        min-width: 168px;
+        max-width: 420px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid var(--line-soft);
+        border-bottom-color: #191c20;
+        border-radius: 6px 6px 0 0;
+        padding: 0 11px;
+        background: #191c20;
+        color: var(--text);
+        font-size: 13px;
+      }
+
+      .tab span {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .document-bar {
+        min-height: 82px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 16px;
+        padding: 12px 18px;
+        border-bottom: 1px solid var(--line-soft);
+        background: var(--panel-2);
+      }
+
+      .document-title {
+        margin: 0;
+        color: var(--text);
+        font-size: 20px;
+        line-height: 1.25;
+        overflow-wrap: anywhere;
+      }
+
+      .document-path {
+        margin-top: 4px;
+        color: var(--muted-2);
+        font-size: 12px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .badge-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        justify-content: flex-end;
+      }
+
+      .badge {
+        border: 1px solid rgba(170, 179, 189, .25);
+        border-radius: 999px;
+        padding: 2px 8px;
+        color: var(--muted);
+        background: rgba(255, 255, 255, .03);
+        font-size: 12px;
+      }
+
+      .badge.accent {
+        border-color: rgba(79, 178, 134, .45);
+        background: rgba(79, 178, 134, .13);
+        color: #dffff2;
+      }
+
+      .viewer {
+        min-height: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(330px, .72fr);
+        overflow: hidden;
+      }
+
+      .preview-pane,
+      .raw-pane {
+        min-width: 0;
+        min-height: 0;
+        overflow: auto;
+      }
+
+      .preview-pane {
+        padding: 22px 26px 80px;
+      }
+
+      .raw-pane {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        border-left: 1px solid var(--line-soft);
+        background: var(--panel-3);
+      }
+
+      .raw-header {
+        min-height: 42px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 0 12px;
+        border-bottom: 1px solid var(--line-soft);
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .raw-text {
+        min-height: 0;
+        resize: none;
+        border: 0;
+        border-radius: 0;
+        padding: 18px;
+        background: #121416;
+        color: #e9edf1;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 13px;
+        line-height: 1.65;
+      }
+
+      .metadata-panel {
+        max-width: 920px;
+        border: 1px solid rgba(79, 178, 134, .35);
+        border-radius: 8px;
+        margin-bottom: 18px;
+        overflow: hidden;
+        background: rgba(79, 178, 134, .08);
+        box-shadow: var(--shadow);
+      }
+
+      .metadata-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 38px;
+        padding: 0 12px;
+        border-bottom: 1px solid rgba(79, 178, 134, .28);
+        color: #dffff2;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .metadata-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0;
+      }
+
+      .metadata-field {
+        min-width: 0;
+        border-right: 1px solid rgba(79, 178, 134, .2);
+        border-bottom: 1px solid rgba(79, 178, 134, .18);
+        padding: 10px 12px;
+      }
+
+      .metadata-field:nth-child(2n) {
+        border-right: 0;
+      }
+
+      .metadata-key {
+        color: var(--muted-2);
+        font-size: 11px;
+      }
+
+      .metadata-value {
+        margin-top: 2px;
+        color: var(--text);
+        overflow-wrap: anywhere;
+      }
+
+      .pipeline {
+        max-width: 920px;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+        margin-bottom: 18px;
+      }
+
+      .pipeline-step {
+        min-width: 0;
+        border: 1px solid var(--line-soft);
+        border-radius: 8px;
+        padding: 10px;
+        background: #1d2227;
+      }
+
+      .pipeline-step.is-current {
+        border-color: rgba(79, 178, 134, .62);
+        background: var(--accent-soft);
+      }
+
+      .pipeline-label {
+        color: var(--muted-2);
+        font-size: 11px;
+      }
+
+      .pipeline-path {
+        margin-top: 4px;
+        color: #dce2e8;
+        font-size: 12px;
+        overflow-wrap: anywhere;
+      }
+
+      .markdown {
+        max-width: 920px;
+      }
+
+      .markdown h1,
+      .markdown h2,
+      .markdown h3 {
+        margin: 1.2em 0 .55em;
+        color: #f3f6f9;
+        line-height: 1.28;
+      }
+
+      .markdown h1:first-child,
+      .markdown h2:first-child,
+      .markdown h3:first-child {
+        margin-top: 0;
+      }
+
+      .markdown h1 {
+        font-size: 28px;
+      }
+
+      .markdown h2 {
+        font-size: 21px;
+      }
+
+      .markdown h3 {
+        font-size: 16px;
+      }
+
+      .markdown p {
+        margin: .7em 0;
+        color: #dce2e8;
+      }
+
+      .markdown ul,
+      .markdown ol {
+        margin: .65em 0 .9em;
+        padding-left: 1.4em;
+      }
+
+      .markdown li {
+        margin: .26em 0;
+      }
+
+      .markdown code {
+        border: 1px solid #303941;
+        border-radius: 4px;
+        padding: .1em .35em;
+        background: var(--code);
+        color: #e9d9a8;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: .92em;
+      }
+
+      .markdown pre {
+        overflow: auto;
+        border: 1px solid #303941;
+        border-radius: 7px;
+        padding: 14px;
+        background: var(--code);
+        box-shadow: var(--shadow);
+      }
+
+      .markdown pre code {
+        border: 0;
+        padding: 0;
+        background: transparent;
+        color: #e9edf1;
+      }
+
+      .empty-state {
+        display: grid;
+        place-items: center;
+        min-height: 100%;
+        padding: 24px;
+        color: var(--muted);
+        text-align: center;
+      }
+
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+
+      @media (max-width: 1100px) {
+        .viewer {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .raw-pane {
+          border-top: 1px solid var(--line-soft);
+          border-left: 0;
+          min-height: 360px;
+        }
+      }
+
+      @media (max-width: 760px) {
+        body {
+          overflow: auto;
+        }
+
+        .app-shell {
+          grid-template-columns: 1fr;
+          grid-template-rows: minmax(320px, 44dvh) minmax(560px, 56dvh);
+          height: auto;
+          min-height: 100dvh;
+          overflow: visible;
+        }
+
+        .document-bar {
+          grid-template-columns: 1fr;
+        }
+
+        .badge-row {
+          justify-content: flex-start;
+        }
+
+        .metadata-grid,
+        .pipeline {
+          grid-template-columns: 1fr;
+        }
+
+        .metadata-field {
+          border-right: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="フォルダツリー">
+        <div class="workspace-bar">
+          <div class="workspace-mark" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+          <div class="workspace-title">programming_tech_library</div>
+          <button id="expandAllButton" class="icon-button" type="button" title="Expand All" aria-label="Expand All">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h16"/><path d="M4 15h16"/><path d="m8 5 4 4 4-4"/><path d="m8 19 4-4 4 4"/></svg>
+          </button>
+          <button id="collapseAllButton" class="icon-button" type="button" title="Collapse All" aria-label="Collapse All">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h16"/><path d="M4 15h16"/><path d="m8 9 4-4 4 4"/><path d="m8 15 4 4 4-4"/></svg>
+          </button>
+        </div>
+
+        <div class="filter-panel">
+          <label class="search-wrap" for="searchInput">
+            <span class="visually-hidden">Search</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg>
+            <input id="searchInput" class="search-input" type="search" autocomplete="off" placeholder="Search">
+          </label>
+          <div class="filter-grid">
+            <label>
+              <span class="visually-hidden">Kind</span>
+              <select id="kindFilter" class="filter-select" aria-label="Kind"></select>
+            </label>
+            <label>
+              <span class="visually-hidden">Tag</span>
+              <select id="tagFilter" class="filter-select" aria-label="Tag"></select>
+            </label>
+            <label>
+              <span class="visually-hidden">Status</span>
+              <select id="statusFilter" class="filter-select" aria-label="Status"></select>
+            </label>
+          </div>
+        </div>
+
+        <div class="tree-heading">
+          <span>Explorer</span>
+          <span id="matchCount" class="match-count"></span>
+        </div>
+        <nav id="tree" class="tree" aria-label="Explorer"></nav>
+      </aside>
+
+      <main class="content">
+        <div class="tab-strip">
+          <div class="tab">
+            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 2v6h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            <span id="activeTab">index.md</span>
+          </div>
+        </div>
+
+        <header class="document-bar">
+          <div>
+            <h1 id="documentTitle" class="document-title"></h1>
+            <div id="documentPath" class="document-path"></div>
+          </div>
+          <div id="badgeRow" class="badge-row"></div>
+        </header>
+
+        <section class="viewer" aria-live="polite">
+          <article id="previewPane" class="preview-pane"></article>
+          <section class="raw-pane">
+            <div class="raw-header">
+              <span id="rawLabel"></span>
+              <span id="updatedAt"></span>
+            </div>
+            <textarea id="rawText" class="raw-text" spellcheck="false"></textarea>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      const fileData = [
+        {
+          path: "main_artifact/private_data/programming_tech_library/organized_data/item_20260713_001_requirements_note/index.md",
+          kind: "item",
+          tags: ["organized", "requirements", "html"],
+          status: "organized",
+          updated: "2026-07-14 08:55",
+          stage: "organized_data",
+          sourceChain: [
+            ["input", "input/inbox/requirements_note.html"],
+            ["raw", "raw_sources/src_20260713_001_requirements_note/original/requirements_note.html"],
+            ["text", "extracted_text/src_20260713_001_requirements_note/plain_text.txt"],
+            ["item", "organized_data/item_20260713_001_requirements_note/index.md"]
+          ],
+          content: `""""""
+収集日：2026-07-13
+収集URL：local:generated/html/requirements_note.html
+ファイルの要約：HTML から抽出した alpha 最小機能の要件メモ。
+タグ：alpha, requirements, html
+""""""
+
+# 整理済みメモ
+
+HTML source から navigation と footer を除外し、本文、箇条書き、non-goal を検索用の Markdown として整理する。
+
+## 採用する整理
+
+- 原本は raw source として保持する。
+- 抽出 text は source ID に紐づける。
+- UI で読む本文は item ID の index.md にまとめる。
+- 冒頭 metadata block は人間と整理AIが最初に読む context とする。`
+        },
+        {
+          path: "main_artifact/private_data/programming_tech_library/raw_sources/src_20260713_001_requirements_note/source_manifest.json",
+          kind: "source",
+          tags: ["raw", "html"],
+          status: "raw_archived",
+          updated: "2026-07-14 08:55",
+          stage: "raw_sources",
+          sourceChain: [
+            ["input", "input/inbox/requirements_note.html"],
+            ["raw", "raw_sources/src_20260713_001_requirements_note/source_manifest.json"],
+            ["text", "extracted_text/src_20260713_001_requirements_note/plain_text.txt"],
+            ["item", "organized_data/item_20260713_001_requirements_note/index.md"]
+          ],
+          content: `{
+  "source_id": "src_20260713_001_requirements_note",
+  "original_filename": "requirements_note.html",
+  "stored_path": "raw_sources/src_20260713_001_requirements_note/original/requirements_note.html",
+  "media_type": "text/html",
+  "sha256": "demo-replace-with-real-hash",
+  "created_at": "2026-07-13T00:00:00Z",
+  "status": "raw_archived"
+}`
+        },
+        {
+          path: "main_artifact/private_data/programming_tech_library/extracted_text/src_20260713_001_requirements_note/plain_text.txt",
+          kind: "text",
+          tags: ["extracted", "html"],
+          status: "needs_review",
+          updated: "2026-07-14 08:55",
+          stage: "extracted_text",
+          sourceChain: [
+            ["input", "input/inbox/requirements_note.html"],
+            ["raw", "raw_sources/src_20260713_001_requirements_note/original/requirements_note.html"],
+            ["text", "extracted_text/src_20260713_001_requirements_note/plain_text.txt"],
+            ["item", "organized_data/item_20260713_001_requirements_note/index.md"]
+          ],
+          content: `Alpha minimum library workflow
+
+Register a source.
+Keep the original file unchanged.
+Extract plain text with a format-specific helper.
+Review extracted text before it becomes an organized item.
+
+Non-goals:
+- Navigation text
+- Footer links
+- Empty OCR output`
+        },
+        {
+          path: "main_artifact/private_data/programming_tech_library/library_records/items.example.jsonl",
+          kind: "record",
+          tags: ["record", "metadata"],
+          status: "active",
+          updated: "2026-07-14 08:55",
+          stage: "library_records",
+          sourceChain: [
+            ["source", "src_20260713_001_requirements_note"],
+            ["item", "item_20260713_001_requirements_note"]
+          ],
+          content: `{"item_id":"item_20260713_001_requirements_note","title":"Alpha minimum library workflow","collected_at":"2026-07-13","source_url":"local:generated/html/requirements_note.html","summary":"HTML から抽出した alpha 最小機能の要件メモ。","source_ids":["src_20260713_001_requirements_note"],"tags":["alpha","requirements","html"],"status":"organized"}`
+        },
+        {
+          path: "main_artifact/private_data/programming_tech_library/organized_data/item_20260713_002_pdf_layout_note/index.md",
+          kind: "item",
+          tags: ["organized", "pdf", "layout"],
+          status: "needs_review",
+          updated: "2026-07-14 08:55",
+          stage: "organized_data",
+          sourceChain: [
+            ["input", "input/inbox/pdf_layout_note.pdf"],
+            ["raw", "raw_sources/src_20260713_002_pdf_layout_note/original/pdf_layout_note.pdf"],
+            ["text", "extracted_text/src_20260713_002_pdf_layout_note/plain_text.txt"],
+            ["item", "organized_data/item_20260713_002_pdf_layout_note/index.md"]
+          ],
+          content: `""""""
+収集日：2026-07-13
+収集URL：local:generated/pdf/pdf_layout_note.pdf
+ファイルの要約：2 段組 PDF から本文と caption を分けるための確認メモ。
+タグ：pdf, layout, caption
+""""""
+
+# 整理済みメモ
+
+PDF source は native text layer を優先し、header/footer を layout noise として扱う。
+caption は本文とは別の文脈として保持する。`
+        },
+        {
+          path: "main_artifact/private_data/programming_tech_library/organized_data/item_20260713_003_diagram_note/index.md",
+          kind: "item",
+          tags: ["organized", "image", "ocr"],
+          status: "needs_review",
+          updated: "2026-07-14 08:55",
+          stage: "organized_data",
+          sourceChain: [
+            ["input", "input/inbox/diagram_note.jpg"],
+            ["raw", "raw_sources/src_20260713_003_diagram_note/original/diagram_note.jpg"],
+            ["text", "extracted_text/src_20260713_003_diagram_note/plain_text.txt"],
+            ["item", "organized_data/item_20260713_003_diagram_note/index.md"]
+          ],
+          content: `""""""
+収集日：2026-07-13
+収集URL：local:generated/image/diagram_note.jpg
+ファイルの要約：図表 JPG を OCR 候補と diagram transcription に分ける確認メモ。
+タグ：image, ocr, diagram
+""""""
+
+# 整理済みメモ
+
+JPG source は OCR candidate だけで検索に投入せず、human review 済みの diagram transcription を検索用 text として使う。`
+        },
+        {
+          path: "main_artifact/private_data/programming_tech_library/process_log.csv",
+          kind: "log",
+          tags: ["process", "status"],
+          status: "active",
+          updated: "2026-07-14 08:55",
+          stage: "process_log",
+          sourceChain: [
+            ["run", "intake"],
+            ["run", "extract"],
+            ["run", "organize"]
+          ],
+          content: `run_id,source_id,item_id,input_path,raw_path,text_path,media_type,sha256,extractor,status,started_at,finished_at,warnings
+run_20260713_001,src_20260713_001_requirements_note,item_20260713_001_requirements_note,input/inbox/requirements_note.html,raw_sources/src_20260713_001_requirements_note/original/requirements_note.html,extracted_text/src_20260713_001_requirements_note/plain_text.txt,text/html,demo,html_to_text,organized,2026-07-13T00:00:00Z,2026-07-13T00:02:10Z,""`
+        },
+        {
+          path: "sub_artifact/006_library_folder_structure/metadata_header_contract.md",
+          kind: "contract",
+          tags: ["contract", "metadata"],
+          status: "active",
+          updated: "2026-07-14 08:55",
+          stage: "contract",
+          sourceChain: [
+            ["contract", "metadata_header_contract.md"],
+            ["template", "organized_data/_template/index.md"]
+          ],
+          content: `# Organized Text Metadata Header Contract
+
+## 必須 header
+
+\`\`\`text
+""""""
+収集日：YYYY-MM-DD
+収集URL：https://example.com/source
+ファイルの要約：1〜3文で内容を要約する。
+タグ：tag1, tag2
+""""""
+\`\`\`
+
+この header は人間、整理AI、LLM が text file を開いた瞬間に文脈を理解するための表示用 metadata である。
+機械処理の唯一の正本にはせず、source_refs、item record、source manifest、extraction record と同期する。`
+        }
+      ];
+
+      const state = {
+        selectedPath: "main_artifact/private_data/programming_tech_library/organized_data/item_20260713_001_requirements_note/index.md",
+        expanded: new Set([
+          "main_artifact",
+          "main_artifact/private_data",
+          "main_artifact/private_data/programming_tech_library",
+          "main_artifact/private_data/programming_tech_library/raw_sources",
+          "main_artifact/private_data/programming_tech_library/raw_sources/src_20260713_001_requirements_note",
+          "main_artifact/private_data/programming_tech_library/extracted_text",
+          "main_artifact/private_data/programming_tech_library/extracted_text/src_20260713_001_requirements_note",
+          "main_artifact/private_data/programming_tech_library/organized_data",
+          "main_artifact/private_data/programming_tech_library/organized_data/item_20260713_001_requirements_note",
+          "main_artifact/private_data/programming_tech_library/library_records",
+          "sub_artifact",
+          "sub_artifact/006_library_folder_structure"
+        ])
+      };
+
+      const el = {
+        tree: document.getElementById("tree"),
+        search: document.getElementById("searchInput"),
+        kind: document.getElementById("kindFilter"),
+        tag: document.getElementById("tagFilter"),
+        status: document.getElementById("statusFilter"),
+        matchCount: document.getElementById("matchCount"),
+        activeTab: document.getElementById("activeTab"),
+        title: document.getElementById("documentTitle"),
+        path: document.getElementById("documentPath"),
+        badgeRow: document.getElementById("badgeRow"),
+        preview: document.getElementById("previewPane"),
+        rawLabel: document.getElementById("rawLabel"),
+        rawText: document.getElementById("rawText"),
+        updatedAt: document.getElementById("updatedAt"),
+        expandAll: document.getElementById("expandAllButton"),
+        collapseAll: document.getElementById("collapseAllButton")
+      };
+
+      const icons = {
+        folder: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`,
+        file: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>`,
+        chevronRight: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>`,
+        chevronDown: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>`
+      };
+
+      function unique(values) {
+        return [...new Set(values)].sort((a, b) => a.localeCompare(b, "ja"));
+      }
+
+      function basename(path) {
+        return path.split("/").pop();
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;");
+      }
+
+      function inlineMarkdown(value) {
+        return escapeHtml(value)
+          .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+          .replace(/`([^`]+)`/g, "<code>$1</code>");
+      }
+
+      function stripMetadataBlock(markdown) {
+        const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+        if (lines[0] !== '""""""') return { metadata: [], body: markdown };
+        const endIndex = lines.findIndex((line, index) => index > 0 && line === '""""""');
+        if (endIndex < 0) return { metadata: [], body: markdown };
+        const metadata = lines.slice(1, endIndex).map((line) => {
+          const separator = line.indexOf("：");
+          if (separator < 0) return ["", line];
+          return [line.slice(0, separator), line.slice(separator + 1)];
+        });
+        return { metadata, body: lines.slice(endIndex + 1).join("\n") };
+      }
+
+      function renderMarkdown(markdown) {
+        const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+        const html = [];
+        let index = 0;
+
+        while (index < lines.length) {
+          const line = lines[index];
+
+          if (!line.trim()) {
+            index += 1;
+            continue;
+          }
+
+          if (line.startsWith("```")) {
+            const code = [];
+            index += 1;
+            while (index < lines.length && !lines[index].startsWith("```")) {
+              code.push(lines[index]);
+              index += 1;
+            }
+            index += 1;
+            html.push(`<pre><code>${escapeHtml(code.join("\n"))}</code></pre>`);
+            continue;
+          }
+
+          const heading = line.match(/^(#{1,3})\s+(.+)$/);
+          if (heading) {
+            const level = heading[1].length;
+            html.push(`<h${level}>${inlineMarkdown(heading[2])}</h${level}>`);
+            index += 1;
+            continue;
+          }
+
+          if (/^-\s+/.test(line)) {
+            const items = [];
+            while (index < lines.length && /^-\s+/.test(lines[index])) {
+              items.push(`<li>${inlineMarkdown(lines[index].replace(/^-\s+/, ""))}</li>`);
+              index += 1;
+            }
+            html.push(`<ul>${items.join("")}</ul>`);
+            continue;
+          }
+
+          if (/^\d+\.\s+/.test(line)) {
+            const items = [];
+            while (index < lines.length && /^\d+\.\s+/.test(lines[index])) {
+              items.push(`<li>${inlineMarkdown(lines[index].replace(/^\d+\.\s+/, ""))}</li>`);
+              index += 1;
+            }
+            html.push(`<ol>${items.join("")}</ol>`);
+            continue;
+          }
+
+          const paragraph = [];
+          while (
+            index < lines.length &&
+            lines[index].trim() &&
+            !lines[index].startsWith("```") &&
+            !/^(#{1,3})\s+/.test(lines[index]) &&
+            !/^-\s+/.test(lines[index]) &&
+            !/^\d+\.\s+/.test(lines[index])
+          ) {
+            paragraph.push(lines[index]);
+            index += 1;
+          }
+          html.push(`<p>${inlineMarkdown(paragraph.join(" "))}</p>`);
+        }
+
+        return html.join("\n");
+      }
+
+      function fillSelect(select, label, values) {
+        select.innerHTML = "";
+        const all = document.createElement("option");
+        all.value = "all";
+        all.textContent = `${label}: all`;
+        select.appendChild(all);
+        values.forEach((value) => {
+          const option = document.createElement("option");
+          option.value = value;
+          option.textContent = `${label}: ${value}`;
+          select.appendChild(option);
+        });
+      }
+
+      function setupFilters() {
+        fillSelect(el.kind, "kind", unique(fileData.map((item) => item.kind)));
+        fillSelect(el.tag, "tag", unique(fileData.flatMap((item) => item.tags)));
+        fillSelect(el.status, "status", unique(fileData.map((item) => item.status)));
+      }
+
+      function matchesFilters(item) {
+        const query = el.search.value.trim().toLowerCase();
+        if (el.kind.value !== "all" && item.kind !== el.kind.value) return false;
+        if (el.tag.value !== "all" && !item.tags.includes(el.tag.value)) return false;
+        if (el.status.value !== "all" && item.status !== el.status.value) return false;
+        if (!query) return true;
+        return [item.path, item.kind, item.status, item.tags.join(" "), item.content].join(" ").toLowerCase().includes(query);
+      }
+
+      function filteredFiles() {
+        return fileData.filter(matchesFilters);
+      }
+
+      function folderAncestors(path) {
+        const parts = path.split("/");
+        const folders = [];
+        for (let i = 1; i < parts.length; i += 1) {
+          folders.push(parts.slice(0, i).join("/"));
+        }
+        return folders;
+      }
+
+      function buildTree(files) {
+        const root = { name: "", path: "", type: "folder", children: new Map() };
+        files.forEach((file) => {
+          const parts = file.path.split("/");
+          let cursor = root;
+          parts.forEach((part, index) => {
+            const currentPath = parts.slice(0, index + 1).join("/");
+            if (!cursor.children.has(part)) {
+              cursor.children.set(part, {
+                name: part,
+                path: currentPath,
+                type: index === parts.length - 1 ? "file" : "folder",
+                children: new Map(),
+                file: index === parts.length - 1 ? file : null
+              });
+            }
+            cursor = cursor.children.get(part);
+          });
+        });
+        return root;
+      }
+
+      function flattenTree(node, depth = 0, rows = []) {
+        [...node.children.values()]
+          .sort((a, b) => {
+            if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
+            return a.name.localeCompare(b.name, "ja");
+          })
+          .forEach((child) => {
+            rows.push({ node: child, depth });
+            if (child.type === "folder" && state.expanded.has(child.path)) {
+              flattenTree(child, depth + 1, rows);
+            }
+          });
+        return rows;
+      }
+
+      function renderTree() {
+        const files = filteredFiles();
+        const visiblePaths = new Set(files.map((file) => file.path));
+        files.forEach((file) => folderAncestors(file.path).forEach((folder) => visiblePaths.add(folder)));
+        el.matchCount.textContent = `${files.length} files`;
+        el.tree.innerHTML = "";
+
+        flattenTree(buildTree(files)).forEach(({ node, depth }) => {
+          const row = document.createElement("button");
+          row.type = "button";
+          row.className = `tree-item${node.path === state.selectedPath ? " is-selected" : ""}`;
+          row.style.setProperty("--depth", depth);
+          row.hidden = !visiblePaths.has(node.path);
+
+          const expander = document.createElement("span");
+          expander.className = "tree-expander";
+          if (node.type === "folder" && node.children.size) {
+            expander.innerHTML = state.expanded.has(node.path) ? icons.chevronDown : icons.chevronRight;
+          }
+
+          const icon = document.createElement("span");
+          icon.className = `tree-icon${node.type === "file" ? " file" : ""}`;
+          icon.innerHTML = node.type === "folder" ? icons.folder : icons.file;
+
+          const name = document.createElement("span");
+          name.className = "tree-name";
+          name.textContent = node.name;
+
+          const pill = document.createElement("span");
+          pill.className = "kind-pill";
+          pill.textContent = node.file ? node.file.kind : "dir";
+
+          row.append(expander, icon, name, pill);
+          row.addEventListener("click", () => {
+            if (node.type === "folder") {
+              if (state.expanded.has(node.path)) state.expanded.delete(node.path);
+              else state.expanded.add(node.path);
+              renderTree();
+              return;
+            }
+            state.selectedPath = node.path;
+            renderTree();
+            renderDocument();
+          });
+          el.tree.appendChild(row);
+        });
+      }
+
+      function currentFile() {
+        const files = filteredFiles();
+        if (!files.some((file) => file.path === state.selectedPath)) {
+          state.selectedPath = files[0]?.path || fileData[0].path;
+        }
+        return fileData.find((item) => item.path === state.selectedPath) || fileData[0];
+      }
+
+      function renderMetadata(metadata) {
+        if (!metadata.length) return "";
+        const fields = metadata.map(([key, value]) => `
+          <div class="metadata-field">
+            <div class="metadata-key">${escapeHtml(key || "metadata")}</div>
+            <div class="metadata-value">${escapeHtml(value || "未確認")}</div>
+          </div>
+        `).join("");
+        return `
+          <section class="metadata-panel" aria-label="metadata">
+            <div class="metadata-title">
+              <span>Metadata Header</span>
+              <span>""""""</span>
+            </div>
+            <div class="metadata-grid">${fields}</div>
+          </section>
+        `;
+      }
+
+      function renderPipeline(file) {
+        const steps = file.sourceChain.map(([label, path]) => `
+          <div class="pipeline-step${file.stage === label || file.stage === path.split("/")[0] ? " is-current" : ""}">
+            <div class="pipeline-label">${escapeHtml(label)}</div>
+            <div class="pipeline-path">${escapeHtml(path)}</div>
+          </div>
+        `).join("");
+        return `<section class="pipeline" aria-label="source pipeline">${steps}</section>`;
+      }
+
+      function renderDocument() {
+        const file = currentFile();
+        const parsed = stripMetadataBlock(file.content);
+        el.activeTab.textContent = basename(file.path);
+        el.title.textContent = basename(file.path);
+        el.path.textContent = file.path;
+        el.badgeRow.innerHTML = [
+          `<span class="badge accent">${escapeHtml(file.status)}</span>`,
+          `<span class="badge">${escapeHtml(file.kind)}</span>`,
+          ...file.tags.map((tag) => `<span class="badge">${escapeHtml(tag)}</span>`)
+        ].join("");
+        el.preview.innerHTML = `
+          ${renderPipeline(file)}
+          ${renderMetadata(parsed.metadata)}
+          <div class="markdown">${renderMarkdown(parsed.body)}</div>
+        `;
+        el.rawLabel.textContent = file.kind === "item" ? "Raw Markdown" : "Raw Content";
+        el.updatedAt.textContent = file.updated;
+        el.rawText.value = file.content;
+      }
+
+      function expandAll() {
+        fileData.forEach((file) => folderAncestors(file.path).forEach((folder) => state.expanded.add(folder)));
+        renderTree();
+      }
+
+      function collapseAll() {
+        state.expanded.clear();
+        renderTree();
+      }
+
+      setupFilters();
+      renderTree();
+      renderDocument();
+
+      [el.search, el.kind, el.tag, el.status].forEach((control) => {
+        control.addEventListener("input", () => {
+          renderTree();
+          renderDocument();
+        });
+      });
+      el.expandAll.addEventListener("click", expandAll);
+      el.collapseAll.addEventListener("click", collapseAll);
+    </script>
+  </body>
+</html>
