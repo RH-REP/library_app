@@ -30,8 +30,8 @@ Issue #7 は実装そのものではなく、ユーザー案に対するフォ�
 ## 判断
 
 - `input/` は未処理 dropbox として残す。
-- 原本保存は `raw_data/` より既存方針に近い `raw_sources/` が分かりやすい。
-- text 抽出結果は `organized_data/` へ直行させず、`extracted_text/` を挟む方が安全である。
+- 原本保存は `raw_data/` より、PDF、JPG、HTML などの原本を表す `source_data/` が分かりやすい。
+- text 抽出結果は `organized_data/` へ直行させず、`extracted_data/` を挟む方が安全である。
 - `organized_data/` は「整理AIが読書・知識単位にまとめた結果」に限定する。
 - 処理履歴は `process_log.csv` だけに寄せず、各 source の `source_manifest.json` と併用する。
 - `.library_skill` は hidden directory なので、Python package としては `library_skill/` または
@@ -41,4 +41,4 @@ Issue #7 は実装そのものではなく、ユーザー案に対するフォ�
 - private data の実体ファイルは template と header に留め、実PDFや実OCR出力は追加しない。
 - `organized_data/{item_id}/index.md` の冒頭には、収集日、収集URL、要約、タグの metadata block を必ず置く。
 - metadata block は人間・整理AI・LLM向けの表示用であり、機械処理の唯一の正本にはしない。
-- 完成イメージ確認用の viewer は、動的 backend なしの static HTML とし、Explorer、metadata header、raw/extracted/organized の流れを同じ画面で見せる。
+- 完成イメージ確認用の viewer は、動的 backend なしの static HTML とし、Explorer、metadata header、`source_data -> extracted_data -> organized_data` の流れを同じ画面で見せる。

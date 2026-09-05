@@ -9,14 +9,15 @@ programming_tech_library/
 ├── input/
 │   └── inbox/
 ├── process_log.csv
-├── raw_sources/
+├── source_data/
 │   └── _template/
 │       ├── original/
 │       ├── source_manifest.example.json
 │       └── attachments/
-├── extracted_text/
+├── extracted_data/
 │   └── _template/
-│       ├── plain_text.example.txt
+│       ├── raw_text.example.txt
+│       ├── extracted_text.example.json
 │       └── extraction_record.example.json
 ├── organized_data/
 │   └── _template/
@@ -34,8 +35,8 @@ programming_tech_library/
 ## 役割
 
 - `input/inbox/`: ユーザーや調査Agentが未処理ファイルを置く場所。
-- `raw_sources/`: source ID ごとに原本を保存する場所。
-- `extracted_text/`: source ID ごとの機械抽出 text を保存する場所。
+- `source_data/`: source ID ごとに PDF、JPG、HTML などの原本を保存する場所。
+- `extracted_data/`: source ID ごとの `raw_text`、編集済み `extracted_text`、抽出 record を保存する場所。
 - `organized_data/`: item ID ごとの整理済み知識を保存する場所。
 - `library_records/`: UI、検索、import/export 用の正規化レコードを置く場所。
 - `process_log.csv`: intake、抽出、整理の処理履歴を append-only で残すログ。
@@ -45,8 +46,10 @@ programming_tech_library/
 
 ## 運用ルール
 
-- 原本は `raw_sources/{source_id}/original/` に保存し、原則として変更しない。
-- 抽出 text は `extracted_text/{source_id}/plain_text.txt` に保存する。
+- 原本は `source_data/{source_id}/original/` に保存し、原則として変更しない。
+- 機械抽出直後の text は `extracted_data/{source_id}/raw_text.txt` に保存する。
+- 人間または整理処理が編集できる抽出結果は `extracted_data/{source_id}/extracted_text.json` に保存する。
+- 抽出処理の metadata は `extracted_data/{source_id}/extraction_record.json` に保存する。
 - 整理済みの知識単位は `organized_data/{item_id}/index.md` に保存する。
 - `organized_data/{item_id}/index.md` の冒頭には、収集日、収集URL、要約、タグの metadata block を置く。
 - source と item の対応は `source_refs.json` と `library_records/` で管理する。

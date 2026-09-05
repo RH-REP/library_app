@@ -103,3 +103,4 @@ bug report を投稿する必要があるときは、issue #1 を reopen して�
 - `sub_artifact/`: 主成果物を完成・改善するための中間成果物、部品、調査、試作、補助作業の場所
 - `issue_log/`: issue ごとの判断や作業記録を残す場所
 - `.core_program/`: 内部エンジン用。通常は直接編集しません
+

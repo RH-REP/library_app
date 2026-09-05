@@ -1,1 +1,1 @@
-source_id,item_id,original_filename,media_type,sha256,raw_path,text_path,status,created_at,updated_at
+source_id,item_id,original_filename,media_type,sha256,source_data_path,raw_text_path,extracted_text_path,status,created_at,updated_at

@@ -33,3 +33,28 @@
 - GitHub Pages 用に `docs/sub_artifact/006_library_folder_structure/viewer_demo.html` へ同じ HTML をミラーした。
 - Explorer、metadata header panel、raw content pane、source pipeline を 1 つの静的HTMLで確認できるようにした。
 - HTML parse、duplicate id check、docs mirror の一致確認、埋め込み JavaScript の `node --check` を実行した。
+
+## 2026-07-14
+
+- follow-up comment で、Phase 0 sample と static viewer を組み合わせ、
+  完成品として確認できるものを作る依頼を確認した。
+- `sub_artifact/005_multiformat_text_extraction/phase0_reverse_sample_demo/` の
+  `generated/`、`expected_extracted/`、`organized_examples/`、`manifest.json` を確認した。
+- `main_artifact/web_app/index.html` を正本として、reverse sample 統合版 static viewer に更新した。
+- `docs/main_artifact/web_app/index.html`、`sub_artifact/006_library_folder_structure/viewer_demo.html`、
+  `docs/sub_artifact/006_library_folder_structure/viewer_demo.html` を同じ内容へ同期した。
+- 統合 viewer で、`raw_text`、`extracted_text`、metadata header 付き organized item を
+  1 つの Explorer / preview / raw pane / source pipeline で辿れるようにした。
+- PDF と JPG は static HTML 内に preview 用 data URI として埋め込み、docs mirror でも確認できるようにした。
+- 追加フィードバックを受け、`source_texts/` の段階を viewer から外し、
+  pipeline を `raw_text -> extracted_text -> organized item` に変更した。
+- 右側の raw pane に `Save edit` と `Reset` を追加し、HTML 内メモリ上で編集を preview に反映できるようにした。
+- follow-up comment で、整理済みメモの追加と tag の追加・編集をできるようにする依頼を確認した。
+- `Add memo` を追加し、現在の sample に対応する organized item へ `## 追加メモ YYYY-MM-DD` を追記できるようにした。
+- tag editor と `Apply tags` を追加し、comma-separated の tag を HTML 内メモリで追加・編集できるようにした。
+- follow-up comment で、正規用語を `source_data`、`extracted_data`、`organized_data` に整理する方針を確認した。
+- `main_artifact/private_data/programming_tech_library/` の `raw_sources/` を `source_data/`、
+  `extracted_text/` を `extracted_data/` に改名した。
+- `extracted_data/_template/` に `raw_text.example.txt`、`extracted_text.example.json`、
+  `extraction_record.example.json` の構成を反映した。
+- static viewer の仮想 path と source pipeline を `source_data -> raw_text -> extracted_text -> organized_data` に更新した。

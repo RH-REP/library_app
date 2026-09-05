@@ -1,0 +1,4 @@
+Example raw text.
+
+This file shows the text immediately produced by OCR, PDF text extraction,
+or HTML parsing before human cleanup and structured extraction.

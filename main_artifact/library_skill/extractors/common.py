@@ -5,10 +5,16 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 import json
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Literal
 
 
-ExtractionStatus = Literal["ok", "needs_ocr", "needs_review", "failed"]
+if TYPE_CHECKING:
+    ExtractionStatus = Literal["ok", "needs_ocr", "needs_review", "failed"]
+else:
+    ExtractionStatus = str
 ExtractionMethod = str
 
 
@@ -24,33 +30,35 @@ class ExtractionRecord:
     language_hint: str
     layout_warnings: tuple[str, ...] = ()
     extraction_method: ExtractionMethod = ""
+    raw_text_path: str = ""
+    extracted_text_path: str = ""
 
 
 @dataclass(frozen=True)
 class ExtractionResult:
     record: ExtractionRecord
-    plain_text: str = ""
+    raw_text: str = ""
     body_text: str = ""
     caption_text: str = ""
     figure_text: str = ""
     diagram_transcription: str = ""
 
     def searchable_text(self) -> str:
-        """Return the text intended for plain_text.txt.
+        """Return the text intended for raw_text.txt.
 
         Low-confidence figure OCR candidates are not included automatically.
-        Callers can set plain_text explicitly if they want a different blend.
+        Callers can set raw_text explicitly if they want a different blend.
         """
-        if self.plain_text:
-            return self.plain_text
-        return compose_plain_text(
+        if self.raw_text:
+            return self.raw_text
+        return compose_raw_text(
             body_text=self.body_text,
             caption_text=self.caption_text,
             diagram_transcription=self.diagram_transcription,
         )
 
 
-def compose_plain_text(
+def compose_raw_text(
     *,
     body_text: str = "",
     caption_text: str = "",
@@ -91,7 +99,7 @@ def not_implemented_result(
     )
 
 
-def _structured_text_payload(result: ExtractionResult) -> dict[str, object]:
+def _extracted_text_payload(result: ExtractionResult) -> dict[str, object]:
     return {
         "body_text": result.body_text,
         "caption_text": result.caption_text,
@@ -101,18 +109,25 @@ def _structured_text_payload(result: ExtractionResult) -> dict[str, object]:
 
 
 def write_extraction_result(result: ExtractionResult, output_dir: str | Path) -> None:
-    """Write extraction outputs using the issue #7 layout plus structured text."""
+    """Write extraction outputs using the source/extracted/organized data contract."""
     destination = Path(output_dir)
     destination.mkdir(parents=True, exist_ok=True)
-    (destination / "plain_text.txt").write_text(
+    raw_text_path = destination / "raw_text.txt"
+    extracted_text_path = destination / "extracted_text.json"
+    record_path = destination / "extraction_record.json"
+
+    raw_text_path.write_text(
         result.searchable_text(),
         encoding="utf-8",
     )
-    (destination / "extraction_record.json").write_text(
-        json.dumps(asdict(result.record), ensure_ascii=False, indent=2) + "\n",
+    record = asdict(result.record)
+    record["raw_text_path"] = record["raw_text_path"] or str(raw_text_path)
+    record["extracted_text_path"] = record["extracted_text_path"] or str(extracted_text_path)
+    record_path.write_text(
+        json.dumps(record, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    (destination / "structured_text.json").write_text(
-        json.dumps(_structured_text_payload(result), ensure_ascii=False, indent=2) + "\n",
+    extracted_text_path.write_text(
+        json.dumps(_extracted_text_payload(result), ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )

@@ -6,6 +6,8 @@
   "required": [
     "source_id",
     "source_path",
+    "raw_text_path",
+    "extracted_text_path",
     "media_type",
     "extractor",
     "extraction_method",
@@ -23,6 +25,14 @@
     "source_path": {
       "type": "string",
       "description": "Path to the archived source file used as extractor input."
+    },
+    "raw_text_path": {
+      "type": "string",
+      "description": "Path to the raw_text.txt output inside extracted_data."
+    },
+    "extracted_text_path": {
+      "type": "string",
+      "description": "Path to the extracted_text.json output inside extracted_data."
     },
     "media_type": {
       "type": "string",

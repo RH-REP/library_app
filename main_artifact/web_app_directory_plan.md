@@ -90,8 +90,8 @@ library_skill/
 - 抽出済み text
 - 個別の蔵書データ
 
-extractor の出力先は `private_data/programming_tech_library/extracted_text/` とし、
-原本保存先は `private_data/programming_tech_library/raw_sources/` とする。
+extractor の出力先は `private_data/programming_tech_library/extracted_data/` とし、
+原本保存先は `private_data/programming_tech_library/source_data/` とする。
 
 ### `main_artifact/private_data/programming_tech_library/`
 
@@ -103,8 +103,8 @@ extractor の出力先は `private_data/programming_tech_library/extracted_text/
 private_data/programming_tech_library/
 ├── input/
 ├── process_log.csv
-├── raw_sources/
-├── extracted_text/
+├── source_data/
+├── extracted_data/
 ├── organized_data/
 ├── library_records/
 ├── research_requests/

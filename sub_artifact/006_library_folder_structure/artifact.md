@@ -8,7 +8,7 @@ Issue #7 の依頼に対する、図書館データの実フォルダ構成レ�
 - 個別データは `main_artifact/private_data/programming_tech_library/` に寄せる。
 - 共有可能な demo data は `main_artifact/fixtures/demo_programming_tech_library/` に分ける。
 - UI は Explorer 型で、path、kind、tag、status を使って検索・絞り込みする。
-- HTML / PDF / image は Python extractor で plain text 化する方針がある。
+- HTML / PDF / image は Python extractor で `raw_text` と `extracted_text` に落とし込む方針がある。
 
 ## 結論
 
@@ -18,11 +18,11 @@ Issue #7 の依頼に対する、図書館データの実フォルダ構成レ�
 ただし first cut では、`organized_data/` に text 抽出結果を直接置くのではなく、
 次の 3 段階に分ける方が破綻しにくい。
 
-1. 原本を保存する `raw_sources/`
-2. 原本から機械的に抽出した `extracted_text/`
+1. 原本を保存する `source_data/`
+2. 原本から機械的に抽出した `extracted_data/`
 3. 整理AIや人間が内容単位にまとめた `organized_data/`
 
-`raw_sources/` と `extracted_text/` は source ID で 1 対 1 に対応させる。
+`source_data/` と `extracted_data/` は source ID で 1 対 1 に対応させる。
 `organized_data/` は content または item ID で管理し、必要に応じて複数 source を参照する。
 
 ## 推奨 first cut
@@ -33,15 +33,16 @@ main_artifact/private_data/programming_tech_library/
 ├── input/
 │   └── inbox/
 ├── process_log.csv
-├── raw_sources/
+├── source_data/
 │   └── src_YYYYMMDD_NNN_short_slug/
 │       ├── original/
 │       │   └── original_file.ext
 │       ├── source_manifest.json
 │       └── attachments/
-├── extracted_text/
+├── extracted_data/
 │   └── src_YYYYMMDD_NNN_short_slug/
-│       ├── plain_text.txt
+│       ├── raw_text.txt
+│       ├── extracted_text.json
 │       └── extraction_record.json
 ├── organized_data/
 │   └── item_YYYYMMDD_NNN_short_slug/
@@ -60,7 +61,7 @@ main_artifact/private_data/programming_tech_library/
 ユーザーや調査Agentがファイルを置く未処理 dropbox とする。
 
 ここでは分類しない。PDF、画像、HTML、CSV などが混在してよい。
-整理AIが処理を開始したら、原本は `raw_sources/{source_id}/original/` へコピーまたは移動する。
+整理AIが処理を開始したら、原本は `source_data/{source_id}/original/` へコピーまたは移動する。
 
 実用ルール:
 
@@ -68,13 +69,12 @@ main_artifact/private_data/programming_tech_library/
 - 処理済みファイルを `input/` に残し続けない。
 - 重複判定はファイル名ではなく sha256 で行う。
 
-### `raw_sources/`
+### `source_data/`
 
 原本の保存場所である。ユーザー案の `raw_data/` に相当する。
 
-既存文書では `raw_sources/` という名前が出ているため、この repository では
-`raw_data/` より `raw_sources/` を推奨する。意味も「原本」に寄るため、
-抽出結果や整理済み情報と混ざりにくい。
+この repository では `raw_data/` より `source_data/` を推奨する。PDF、JPG、HTML などの
+調査結果そのものを表すため、抽出結果や整理済み情報と混ざりにくい。
 
 実用ルール:
 
@@ -83,7 +83,7 @@ main_artifact/private_data/programming_tech_library/
 - 元ファイル名は `source_manifest.json` に保存する。
 - 同じ内容の再取り込みは `sha256` で検出する。
 
-### `extracted_text/`
+### `extracted_data/`
 
 HTML / PDF / image から機械的に得た text を置く。
 
@@ -92,9 +92,9 @@ HTML の nav 混入が残る可能性があるため、`organized_data/` と分�
 
 実用ルール:
 
-- `raw_sources/{source_id}/` と同じ `source_id` を使う。
+- `source_data/{source_id}/` と同じ `source_id` を使う。
 - 出力ファイル名は固定名にする。
-- first cut の最小出力は `plain_text.txt` と `extraction_record.json` にする。
+- first cut の最小出力は `raw_text.txt`、`extracted_text.json`、`extraction_record.json` にする。
 - status は `ok`、`needs_ocr`、`needs_review`、`failed` を最低限持つ。
 
 ### `organized_data/`
@@ -199,7 +199,8 @@ item_20260713_001_requirements_engineering
 
 ```text
 source_manifest.json
-plain_text.txt
+raw_text.txt
+extracted_text.json
 extraction_record.json
 index.md
 source_refs.json
@@ -213,14 +214,14 @@ notes.md
 `process_log.csv` は append-only の処理履歴にする。
 
 ```csv
-run_id,source_id,item_id,input_path,raw_path,text_path,media_type,sha256,extractor,status,started_at,finished_at,warnings
+run_id,source_id,item_id,input_path,source_data_path,raw_text_path,extracted_text_path,media_type,sha256,extractor,status,started_at,finished_at,warnings
 ```
 
 status の first cut:
 
 ```text
 queued
-raw_archived
+source_archived
 extracted
 needs_ocr
 needs_review
@@ -233,24 +234,26 @@ skipped_duplicate
 
 - `process_log.csv` を唯一の正本にしない。
 - 最新状態は `source_manifest.json`、`extraction_record.json`、`library_records/` にも残す。
-- 失敗時も行を残し、空の `plain_text.txt` だけで成功扱いにしない。
+- 失敗時も行を残し、空の `raw_text.txt` だけで成功扱いにしない。
 
 ## 処理フロー
 
 ```text
 input/inbox/
-  -> raw_sources/{source_id}/original/
-  -> extracted_text/{source_id}/plain_text.txt
+  -> source_data/{source_id}/original/
+  -> extracted_data/{source_id}/raw_text.txt
+  -> extracted_data/{source_id}/extracted_text.json
   -> organized_data/{item_id}/index.md
   -> library_records/sources.csv, items.jsonl
 ```
 
 1. ユーザーまたは調査Agentが `input/inbox/` に原本を置く。
 2. 整理AIが sha256、media type、source ID を決める。
-3. 原本を `raw_sources/{source_id}/original/` に保存する。
-4. Python extractor が `extracted_text/{source_id}/plain_text.txt` を作る。
-5. 整理AIが内容を確認し、`organized_data/{item_id}/` にまとめる。
-6. UI と検索用に `library_records/` を更新する。
+3. 原本を `source_data/{source_id}/original/` に保存する。
+4. Python extractor が `extracted_data/{source_id}/raw_text.txt` を作る。
+5. 人間または整理処理が `extracted_data/{source_id}/extracted_text.json` を編集・確定する。
+6. 整理AIが内容を確認し、`organized_data/{item_id}/` にまとめる。
+7. UI と検索用に `library_records/` を更新する。
 
 ## UI との対応
 
@@ -260,11 +263,12 @@ Explorer UI では、全部の実ファイルをそのまま表示するとノ�
 
 - `organized_data/{item_id}/index.md`
 - `library_records/items.jsonl`
-- review が必要な `extracted_text/{source_id}/plain_text.txt`
+- review が必要な `extracted_data/{source_id}/raw_text.txt`
+- 編集済みの `extracted_data/{source_id}/extracted_text.json`
 
 通常は隠してよいもの:
 
-- `raw_sources/{source_id}/original/`
+- `source_data/{source_id}/original/`
 - OCR 前の画像や PDF 原本
 - `process_log.csv` の全履歴
 
@@ -308,8 +312,8 @@ failed
 
 first cut のおすすめ:
 
-- 原本は `raw_sources/{source_id}/`。
-- 抽出 text は `extracted_text/{source_id}/`。
+- 原本は `source_data/{source_id}/`。
+- 抽出 text は `extracted_data/{source_id}/`。
 - 整理済み知識は `organized_data/{item_id}/`。
 - 関係は `source_refs.json` と `library_records/` で結ぶ。
 
@@ -352,10 +356,10 @@ main_artifact/private_data/programming_tech_library/
 │   ├── README.md
 │   └── inbox/
 ├── process_log.csv
-├── raw_sources/
+├── source_data/
 │   ├── README.md
 │   └── _template/
-├── extracted_text/
+├── extracted_data/
 │   ├── README.md
 │   └── _template/
 ├── organized_data/
@@ -384,8 +388,8 @@ Python file は、`ExtractionRecord` contract と入口関数を固定する ske
    - alpha では JSONL で十分だが、編集 UI を作るなら DB の方が扱いやすくなる。
 3. OCR 結果をどこまで保存するか
    - OCR 前画像、OCR 済み PDF、plain text、warning をどこまで残すかで容量と再現性が変わる。
-4. UI に raw source を表示するか
-   - 通常の Explorer では organized item を主表示にし、raw source は詳細または開発者向け表示に寄せるのがよい。
+4. UI に source_data を表示するか
+   - 通常の Explorer では organized_data を主表示にし、source_data は詳細または開発者向け表示に寄せるのがよい。
 5. private data をどの範囲まで commit するか
    - README、schema、template は commit してよい。
    - 実PDF、画像、大量OCR出力は private repository でも肥大化しやすいため、後で外部 storage へ逃がす判断が必要になる。
@@ -444,8 +448,8 @@ docs/sub_artifact/006_library_folder_structure/viewer_demo.html
 Issue #7 で決めた次の構成を同一画面に載せている。
 
 - `input/inbox/`
-- `raw_sources/{source_id}/`
-- `extracted_text/{source_id}/`
+- `source_data/{source_id}/`
+- `extracted_data/{source_id}/`
 - `organized_data/{item_id}/index.md`
 - `library_records/items.example.jsonl`
 - `process_log.csv`
@@ -455,10 +459,57 @@ Issue #7 で決めた次の構成を同一画面に載せている。
 - 左ペインで folder/file tree を見る。
 - `organized_data` の item を選ぶと、冒頭 metadata block が structured panel として見える。
 - 右側の raw pane では、実際の `index.md` text と quoted metadata block をそのまま見られる。
-- source pipeline で、input、raw source、extracted text、organized item の対応を確認できる。
+- source pipeline で、input、source_data、extracted text、organized_data の対応を確認できる。
 
 実装範囲:
 
 - static HTML / CSS / JavaScript のみ。
 - backend、保存処理、実ファイル読み込みは含めない。
 - 完成品の UX イメージ確認用であり、production app の実装ではない。
+
+## Follow-up: raw_text pipeline sample と static viewer の統合版
+
+2026-07-14 の follow-up comment で、Issue #6 の Phase 0 sample と
+Issue #7 の static viewer を組み合わせ、完成品として確認できる形にするよう依頼された。
+
+これを受けて、次の HTML を同一内容の統合 viewer に更新した。
+
+```text
+main_artifact/web_app/index.html
+docs/main_artifact/web_app/index.html
+sub_artifact/006_library_folder_structure/viewer_demo.html
+docs/sub_artifact/006_library_folder_structure/viewer_demo.html
+```
+
+統合 viewer では、次の 3 層を同じ Explorer / preview / raw pane / source pipeline で確認できる。
+
+1. `source_data`: PDF、JPG、HTML などの原本。
+2. `extracted_data`: `raw_text.txt`、`extracted_text.json`、`extraction_record.json`。
+3. `organized_data`: metadata header 付き `index.md` と `source_refs.json`。
+
+PDF と JPG は static viewer 内に preview できるよう埋め込み、GitHub Pages 側の mirror でも
+リンク切れに依存せず確認できるようにした。HTML/PDF/JPG は `source_data` として
+source pipeline の主導線に置く。
+
+右側の raw pane には `Save edit` と `Reset` を追加した。保存した編集は HTML 内の
+メモリに反映され、preview、metadata panel、JSON 表示、検索対象が更新される。
+永続保存はまだ行わない。
+
+追加で、organized_data へ整理済みメモを追記する `Add memo` と、各 file の tag を
+comma-separated で追加・編集する tag editor を入れた。これらも static HTML 内の
+メモリ更新であり、永続保存は後続実装の対象にする。
+
+## Follow-up: source_data / extracted_data / organized_data への用語整理
+
+2026-07-14 の follow-up comment で、逆変換サンプルではなく、
+次の 3 層を正にする方針が確認された。
+
+```text
+source_data     = PDF、JPG、HTML などの原本
+extracted_data  = OCR や parser によって text 化された状態
+organized_data  = 意味単位に分割し、メモや tag を付けた整理済み状態
+```
+
+これを受けて、private data の実フォルダ、static viewer の仮想 path、
+README、template を `source_data -> extracted_data -> organized_data` に更新した。
+`raw_text` と `extracted_text` は `extracted_data` 配下の編集段階として扱う。
