@@ -104,3 +104,21 @@ bug report を投稿する必要があるときは、issue #1 を reopen して�
 - `issue_log/`: issue ごとの判断や作業記録を残す場所
 - `.core_program/`: 内部エンジン用。通常は直接編集しません
 
+## 利用（clone して使う側）
+
+この repo を clone したフォルダで使う。clone 側では直さず、開発側で直してコミットし、clone 側の `update.command`（`git pull --ff-only`）で取り込む。エンジンの実行記録は `.gitignore` で除外してあるので、pull で消えたり書き換わったりしない。
+
+- 正本: 開発側の `main_artifact/` `sub_artifact/` `issue_log/`（Git で追跡している成果物と作業記録）。clone 側にはその clone と、Git で追跡しないエンジンの実行記録を置く。
+- 起動: clone 側の `start.command` をダブルクリック（静的なデモビューア `index.html` を開くだけ）。
+- エンジン（issue 取得・dispatch）は `start.command` からは起動しない。開発側で動かし、記録を clone 側に置くときは
+  `python3 .core_program/app/01_fetch_issue/run_issue_queue.py --output <clone>/.core_program/app/01_fetch_issue/data/open_issues.json`
+  や dispatch の `run_dir_base` でその場所を指す。既定のまま動かすと開発側に新しく作る（`.gitignore` 済み）。
+
+### 置いてあるもの
+
+| パス | 内容 |
+|---|---|
+| `start.command` | 起動口。この clone の `index.html`（デモビューア）を開く |
+| `update.command` | `git pull --ff-only` で開発側のコミットを取り込む。実行記録は消さない |
+| `.core_program/app/01_fetch_issue/data/open_issues.json` | issue 取得結果のスナップショット（`.gitignore` で除外） |
+| `.core_program/app/02_dispatch_queue/data/visible_sessions/<日時>_<種別>/` | エージェント起動ごとの `prompt.md` と `launch.command`（`.gitignore` で除外） |
