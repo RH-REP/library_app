@@ -37,10 +37,10 @@ Issue #2 の依頼に対して、HTML のデモ画面を作成した。
 
 ## 参照した既存資料
 
-- `~/Desktop/programing/ai_base/my_knowledge/.tools/knowledge_web/README.md`
-- `~/Desktop/programing/ai_base/my_knowledge/.tools/knowledge_web/index.html`
-- `~/Desktop/programing/ai_base/my_knowledge/.tools/knowledge_web/styles.css`
-- `~/Desktop/programing/ai_base/my_knowledge/.tools/knowledge_web/app.js`
+- `<手元の既存ツール群>/knowledge_web/README.md`
+- `<手元の既存ツール群>/knowledge_web/index.html`
+- `<手元の既存ツール群>/knowledge_web/styles.css`
+- `<手元の既存ツール群>/knowledge_web/app.js`
 
 ## 注意点
 
