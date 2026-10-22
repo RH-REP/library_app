@@ -729,7 +729,7 @@
         <nav id="tree" class="tree" aria-label="Explorer"></nav>
       </aside>
 
-      <main class="content">
+      <main class="content" data-screen="viewer.document">
         <div class="tab-strip">
           <div class="tab">
             <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 2v6h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
@@ -2079,6 +2079,18 @@
       el.resetEdit.addEventListener("click", resetCurrentEdit);
       el.expandAll.addEventListener("click", expandAll);
       el.collapseAll.addEventListener("click", collapseAll);
+    </script>
+    <!-- 画面の !○（改善のコメント）。部品は repo の一番上の feedback.js（正本は issue_hub/feedback/feedback.js） -->
+    <script src="../../feedback.js"></script>
+    <script>
+      AppFeedback.install({
+        app: "library_app",
+        version: "2026-10-22",
+        repo: "RH-REP/library_app",
+        screenshot: "off",
+        isPublic: true,
+        getContext: () => ({ summary: `開いているファイル: ${document.getElementById("activeTab")?.textContent || "（なし）"}` }),
+      });
     </script>
   </body>
 </html>

@@ -114,6 +114,10 @@ bug report を投稿する必要があるときは、issue #1 を reopen して�
   `python3 .core_program/app/01_fetch_issue/run_issue_queue.py --output <clone>/.core_program/app/01_fetch_issue/data/open_issues.json`
   や dispatch の `run_dir_base` でその場所を指す。既定のまま動かすと開発側に新しく作る（`.gitignore` 済み）。
 
+### 改善のコメント（右上の !）
+
+画面右上の「!」を押すと、今の画面 ID（`data-screen`）とコメントを書き込んだ GitHub の「新しい Issue」画面（`RH-REP/library_app`）が開く。中身を確かめてから GitHub で送る。この repo は公開なので、送った中身は公開される。そのため画面の写真は既定で付けない（選んだときだけ端末に保存し、本人が GitHub で添付する）。ボタンの部品は `feedback.js`（正本は issue_hub の `feedback/feedback.js`。直すときは正本を直して写し直す）。
+
 ### 置いてあるもの
 
 | パス | 内容 |
