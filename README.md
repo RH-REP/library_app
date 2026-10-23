@@ -110,7 +110,8 @@ bug report を投稿する必要があるときは、issue #1 を reopen して�
 
 - 正本: 開発側の `main_artifact/` `sub_artifact/` `issue_log/`（Git で追跡している成果物と作業記録）。clone 側にはその clone と、Git で追跡しないエンジンの実行記録を置く。
 - 起動: clone 側の `start.command` をダブルクリック（静的なデモビューア `index.html` を開くだけ）。
-- エンジン（issue 取得・dispatch）は `start.command` からは起動しない。開発側で動かし、記録を clone 側に置くときは
+- **Issue は issue_hub（別の repo。複数の app の Issue を外側から回す）で回す。この repo のエンジン（`.core_program/` の issue 取得・dispatch）は使わない**（2026-10-23 から。両方を動かすと同じ書き込みに2つのセッションが起動する）。エンジンは upstream の ArtifactForge から来るので消さずに残してある。issue_hub は、このエンジンが書いた目印（`codex-agent-v1`）も読んで番を決める。
+- （使っていた頃の手順）エンジン（issue 取得・dispatch）は `start.command` からは起動しない。開発側で動かし、記録を clone 側に置くときは
   `python3 .core_program/app/01_fetch_issue/run_issue_queue.py --output <clone>/.core_program/app/01_fetch_issue/data/open_issues.json`
   や dispatch の `run_dir_base` でその場所を指す。既定のまま動かすと開発側に新しく作る（`.gitignore` 済み）。
 
